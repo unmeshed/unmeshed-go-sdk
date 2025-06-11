@@ -1,13 +1,15 @@
 package common
 
 type StepResult struct {
-	result interface{}
+	Result                 interface{}
+	KeepRunning            bool
+	RescheduleAfterSeconds int
 }
 
 func NewStepResult(result interface{}) *StepResult {
-	return &StepResult{result: result}
+	return &StepResult{Result: result, KeepRunning: false, RescheduleAfterSeconds: 0}
 }
 
 func (sr *StepResult) GetResult() interface{} {
-	return sr.result
+	return sr.Result
 }

@@ -7,8 +7,11 @@ import (
 
 	apis "github.com/unmeshed/unmeshed-go-sdk/sdk/apis/main"
 	apis2 "github.com/unmeshed/unmeshed-go-sdk/sdk/apis/workers"
+	"github.com/unmeshed/unmeshed-go-sdk/sdk/common"
 	"github.com/unmeshed/unmeshed-go-sdk/sdk/configs"
 )
+
+var GlobalCounter int = 0
 
 type MathOperations struct{}
 
@@ -18,6 +21,23 @@ func (m *MathOperations) Sum(data map[string]int) int {
 		sum += v
 	}
 	return sum
+}
+
+func RescheduleExample(data map[string]interface{}) *common.StepResult {
+	fmt.Println("Reschedule worker running with counter", GlobalCounter)
+	if GlobalCounter > 5 {
+		stepResult := common.NewStepResult("Response after 5 iterations")
+		stepResult.KeepRunning = false
+		stepResult.RescheduleAfterSeconds = 0
+		GlobalCounter = 0
+		return stepResult
+
+	}
+	GlobalCounter++
+	stepResult := common.NewStepResult("testing reschedule")
+	stepResult.KeepRunning = true
+	stepResult.RescheduleAfterSeconds = 2
+	return stepResult
 }
 
 func FailExample(data map[string]interface{}) error {
@@ -123,6 +143,7 @@ func DelayedResponse(data map[string]interface{}) string {
 
 func main() {
 	workerList := []*apis2.Worker{
+		apis2.NewWorker(RescheduleExample, "reschedule-example"),
 		apis2.NewWorker(DelayedResponse, "delayed-response"),
 		apis2.NewWorker(MultiOutputExample, "multi-output-example"),
 		apis2.NewWorker(ListExample, "list-example"),

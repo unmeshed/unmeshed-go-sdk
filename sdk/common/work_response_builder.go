@@ -134,3 +134,20 @@ func (b *WorkResponseBuilder) SuccessResponse(workRequest *WorkRequest, stepResu
 
 	return workResponse
 }
+
+func (b *WorkResponseBuilder) RunningResponse(workRequest *WorkRequest, stepResult *StepResult) *WorkResponse {
+	output := b.resultToMap(stepResult.GetResult())
+	workResponse := NewWorkResponse()
+	workResponse.SetProcessID(workRequest.GetProcessID())
+	workResponse.SetStepID(workRequest.GetStepID())
+	if workRequest.StepExecutionID == 0 {
+		workResponse.StepExecutionID = 0
+	} else {
+		workResponse.SetStepExecutionID(workRequest.GetStepExecutionID())
+	}
+	workResponse.SetOutput(output)
+	workResponse.SetStartedAt(time.Now().UnixMilli())
+	workResponse.SetStatus(StepStatusRunning)
+	workResponse.SetRescheduleAfterSeconds(stepResult.RescheduleAfterSeconds)
+	return workResponse
+}

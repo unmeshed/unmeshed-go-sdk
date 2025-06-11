@@ -238,10 +238,18 @@ func (uc *UnmeshedClient) pollForWork() error {
 
 func (uc *UnmeshedClient) runStep(worker *workersApi.Worker, workRequest *common.WorkRequest) {
 	result, err := uc.workerRunner.RunWorker(worker, workRequest)
-	if result == nil {
-		result = map[string]interface{}{}
+
+	var stepResult *common.StepResult
+
+	if sr, ok := result.(*common.StepResult); ok {
+		stepResult = sr
+	} else {
+		if result == nil {
+			result = map[string]interface{}{}
+		}
+		stepResult = common.NewStepResult(result)
 	}
-	stepResult := common.NewStepResult(result)
+
 	if err != nil {
 		uc.handleWorkCompletion(workRequest, stepResult, &err)
 	} else {
@@ -250,21 +258,20 @@ func (uc *UnmeshedClient) runStep(worker *workersApi.Worker, workRequest *common
 }
 
 func (uc *UnmeshedClient) handleWorkCompletion(workRequest *common.WorkRequest, stepResult *common.StepResult, throwable *error) {
+	stepId := formattedWorkerID(workRequest.GetStepNamespace(), workRequest.GetStepName())
+	state := uc.pollStates[stepId]
+
+	var workResponse *common.WorkResponse
+
 	if throwable != nil {
-		workResponse := uc.workResponseBuilder.FailResponse(workRequest, *throwable)
-		stepId := formattedWorkerID(workRequest.GetStepNamespace(), workRequest.GetStepName())
-
-		state := uc.pollStates[stepId]
-
-		uc.submitClient.Submit(workResponse, state)
+		workResponse = uc.workResponseBuilder.FailResponse(workRequest, *throwable)
+	} else if stepResult.KeepRunning && stepResult.RescheduleAfterSeconds > 0 {
+		workResponse = uc.workResponseBuilder.RunningResponse(workRequest, stepResult)
 	} else {
-		workResponse := uc.workResponseBuilder.SuccessResponse(workRequest, stepResult)
-		stepId := formattedWorkerID(workRequest.GetStepNamespace(), workRequest.GetStepName())
-
-		state := uc.pollStates[stepId]
-
-		uc.submitClient.Submit(workResponse, state)
+		workResponse = uc.workResponseBuilder.SuccessResponse(workRequest, stepResult)
 	}
+
+	uc.submitClient.Submit(workResponse, state)
 	uc.executingCount.Add(-1)
 }
 
