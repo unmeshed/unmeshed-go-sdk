@@ -22,6 +22,8 @@ This README will walk you through everything you need: from installing the SDK, 
 
 First things first, let's get the SDK into your project:
 ```
+go mod init
+
 go get github.com/unmeshed/unmeshed-go-sdk
 ```
 ---
