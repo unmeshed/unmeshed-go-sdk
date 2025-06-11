@@ -163,7 +163,7 @@ func (uc *UnmeshedClient) pollForWork() error {
 	}
 
 	currentTime := int(time.Now().Unix())
-	if currentTime-int(uc.lastPrinted.Load()) > 10 {
+	if currentTime-int(uc.lastPrinted.Load()) > 30 {
 		log.Printf("Tasks being polled: %v", workerTasks)
 		uc.lastPrinted.Store(int32(currentTime))
 	}
@@ -172,10 +172,6 @@ func (uc *UnmeshedClient) pollForWork() error {
 	if err != nil {
 		uc.releaseUnusedPermits(make(map[string]int), workerRequestCount)
 		return fmt.Errorf("failed to poll work requests: %w", err)
-	}
-
-	if len(workRequests) > 0 {
-		log.Printf("Received work requests: %d", len(workRequests))
 	}
 
 	workerReceivedCount := make(map[string]int)
