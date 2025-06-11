@@ -1,0 +1,469 @@
+package apis
+
+import (
+	"fmt"
+	"log"
+	"math"
+	"math/rand"
+	"os"
+	"path/filepath"
+	"reflect"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"time"
+
+	apis "github.com/unmeshed/unmeshed-go-sdk/sdk/apis/http"
+	poller "github.com/unmeshed/unmeshed-go-sdk/sdk/apis/poller"
+	register "github.com/unmeshed/unmeshed-go-sdk/sdk/apis/register"
+	workerRunner "github.com/unmeshed/unmeshed-go-sdk/sdk/apis/runner"
+	submit "github.com/unmeshed/unmeshed-go-sdk/sdk/apis/submit"
+	"github.com/unmeshed/unmeshed-go-sdk/sdk/apis/workers"
+	workersApi "github.com/unmeshed/unmeshed-go-sdk/sdk/apis/workers"
+	"github.com/unmeshed/unmeshed-go-sdk/sdk/common"
+	"github.com/unmeshed/unmeshed-go-sdk/sdk/configs"
+)
+
+func setupLogging() {
+	enableFileLogging := os.Getenv("ENABLE_FILE_LOGGING") == "true"
+
+	if enableFileLogging {
+		logsDir := "logs"
+		if err := os.MkdirAll(logsDir, 0755); err != nil {
+			log.Printf("Failed to create logs directory: %v", err)
+			return
+		}
+
+		timestamp := time.Now().Format("2006-01-02_15-04-05")
+		logFile := filepath.Join(logsDir, fmt.Sprintf("unmeshed_%s.log", timestamp))
+
+		file, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+		if err != nil {
+			log.Printf("Failed to open log file: %v", err)
+			return
+		}
+
+		log.SetOutput(file)
+		log.SetFlags(log.Ldate | log.Ltime | log.Lmicroseconds | log.Lshortfile)
+		log.Printf("Logging initialized. Log file: %s", logFile)
+	} else {
+		log.SetFlags(log.Ldate | log.Ltime | log.Lmicroseconds | log.Lshortfile)
+	}
+}
+
+type UnmeshedClient struct {
+	ClientConfig             *configs.ClientConfig
+	Workers                  []workersApi.Worker
+	pollStates               map[string]*common.StepPollState
+	permitsZero              atomic.Int32
+	pollSizeZeroTime         atomic.Int64
+	executingCount           atomic.Int32
+	lastPrinted              atomic.Int32
+	pollingErrorRepoted      atomic.Bool
+	jitterUpperBoundInMillis int
+	initialDelayMillis       int
+	backoffMultiplier        int
+	retryCount               atomic.Int32
+	workerByName             map[string]bool
+	workerByNameMutex        sync.RWMutex
+	httpClientFactory        *apis.HttpClientFactory
+	httpRequestFactory       *apis.HttpRequestFactory
+	registrationClient       *register.RegistrationClient
+	pollerClient             *poller.PollerClient
+	submitClient             *submit.SubmitClient
+	workResponseBuilder      *common.WorkResponseBuilder
+	workerRunner             *workerRunner.WorkerRunner
+	stopPolling              atomic.Bool
+	done                     chan struct{}
+}
+
+func NewUnmeshedClient(
+	clientConfig *configs.ClientConfig,
+) *UnmeshedClient {
+	// Setup logging first
+	setupLogging()
+
+	// Validate client ID and token
+	if clientConfig.GetClientID() == "" || !clientConfig.HasToken() {
+		log.Fatal("Cannot initialize without a valid clientId and token")
+	}
+
+	httpClientFactory := apis.NewHttpClientFactory(clientConfig)
+	httpRequestFactory := apis.NewHttpRequestFactory(clientConfig)
+	pollerClient := poller.NewPollerClient(clientConfig, httpClientFactory, httpRequestFactory)
+	submitClient := submit.NewSubmitClient(httpRequestFactory, clientConfig)
+
+	unmeshedClient := &UnmeshedClient{
+		ClientConfig:             clientConfig,
+		Workers:                  []workersApi.Worker{},
+		pollStates:               make(map[string]*common.StepPollState),
+		permitsZero:              atomic.Int32{},
+		pollSizeZeroTime:         atomic.Int64{},
+		executingCount:           atomic.Int32{},
+		lastPrinted:              atomic.Int32{},
+		pollingErrorRepoted:      atomic.Bool{},
+		jitterUpperBoundInMillis: 2000,
+		initialDelayMillis:       0,
+		backoffMultiplier:        2,
+		retryCount:               atomic.Int32{},
+		workerByName:             make(map[string]bool),
+		workerByNameMutex:        sync.RWMutex{},
+		httpClientFactory:        httpClientFactory,
+		httpRequestFactory:       httpRequestFactory,
+		registrationClient:       register.NewRegistrationClient(clientConfig, httpClientFactory, httpRequestFactory),
+		submitClient:             submitClient,
+		pollerClient:             pollerClient,
+		workResponseBuilder:      common.NewWorkResponseBuilder(),
+		workerRunner:             workerRunner.NewWorkerRunner(),
+		stopPolling:              atomic.Bool{},
+		done:                     make(chan struct{}),
+	}
+
+	return unmeshedClient
+}
+
+func (uc *UnmeshedClient) getWorkers() []workersApi.Worker {
+	return uc.Workers
+}
+
+func formattedWorkerID(namespace string, name string) string {
+	return fmt.Sprintf("%s:-#-:%s", namespace, name)
+}
+
+func (uc *UnmeshedClient) pollForWork() error {
+	workers := uc.registrationClient.GetWorkers()
+	workerTasks := []common.StepSize{}
+	workerRequestCount := make(map[string]int)
+
+	for _, worker := range workers {
+		stepQueueNameData := common.StepQueueNameData{
+			OrgId:     0,
+			Namespace: worker.GetNamespace(),
+			StepType:  "WORKER",
+			Name:      worker.GetName(),
+		}
+		workerId := formattedWorkerID(worker.GetNamespace(), worker.GetName())
+
+		state, exists := uc.pollStates[workerId]
+
+		if !exists {
+			return fmt.Errorf("unexpected missing poll state for worker: %s", workerId)
+		}
+
+		size := state.AcquireMaxAvailable()
+		workerRequestCount[workerId] = size
+		if size > 0 {
+			workerTask := common.NewStepSize(stepQueueNameData, size)
+			workerTasks = append(workerTasks, workerTask)
+		}
+	}
+
+	if len(workerTasks) == 0 {
+		return nil
+	}
+
+	currentTime := int(time.Now().Unix())
+	if currentTime-int(uc.lastPrinted.Load()) > 10 {
+		log.Printf("Tasks being polled: %v", workerTasks)
+		uc.lastPrinted.Store(int32(currentTime))
+	}
+
+	workRequests, err := uc.pollerClient.Poll(workerTasks)
+	if err != nil {
+		uc.releaseUnusedPermits(make(map[string]int), workerRequestCount)
+		return fmt.Errorf("failed to poll work requests: %w", err)
+	}
+
+	if len(workRequests) > 0 {
+		log.Printf("Received work requests: %d", len(workRequests))
+	}
+
+	workerReceivedCount := make(map[string]int)
+	for _, workRequest := range workRequests {
+		uc.executingCount.Add(1)
+		workerId := formattedWorkerID(workRequest.GetStepNamespace(), workRequest.GetStepName())
+		workerReceivedCount[workerId]++
+
+		var foundWorker *workersApi.Worker
+		for i := range uc.Workers {
+			if uc.Workers[i].GetName() == workRequest.GetStepName() {
+				foundWorker = &uc.Workers[i]
+				break
+			}
+		}
+
+		if foundWorker != nil {
+			uc.runStep(foundWorker, &workRequest)
+		} else {
+			log.Printf("No worker found for step '%s'\n", workRequest.GetStepName())
+		}
+	}
+
+	uc.releaseUnusedPermits(workerReceivedCount, workerRequestCount)
+
+	if currentTime-int(uc.lastPrinted.Load()) > 2 {
+		logEntries := make([]string, 0, len(workers))
+		for _, worker := range workers {
+			workerId := formattedWorkerID(worker.GetNamespace(), worker.GetName())
+
+			state, exists := uc.pollStates[workerId]
+
+			if exists {
+				available := state.MaxAvailable()
+				total := state.GetTotalCount()
+				requested := workerRequestCount[workerId]
+				logEntries = append(logEntries,
+					fmt.Sprintf("%s:%s = Available[%d] / [%d] / [%d]",
+						worker.GetNamespace(),
+						worker.GetName(),
+						available,
+						requested,
+						total))
+			}
+		}
+
+		executingCount := uc.executingCount.Load()
+		submitTrackerSize := int32(uc.submitClient.GetSubmitTrackerSize())
+		log.Printf("Running: %d st: %d t: %d - permits %s",
+			executingCount,
+			submitTrackerSize,
+			executingCount+submitTrackerSize,
+			strings.Join(logEntries, ", "))
+
+		uc.lastPrinted.Store(int32(currentTime))
+	}
+
+	return nil
+}
+
+func (uc *UnmeshedClient) runStep(worker *workersApi.Worker, workRequest *common.WorkRequest) {
+	result, err := uc.workerRunner.RunWorker(worker, workRequest)
+	if result == nil {
+		result = map[string]interface{}{}
+	}
+	stepResult := common.NewStepResult(result)
+	if err != nil {
+		uc.handleWorkCompletion(workRequest, stepResult, &err)
+	} else {
+		uc.handleWorkCompletion(workRequest, stepResult, nil)
+	}
+}
+
+func (uc *UnmeshedClient) handleWorkCompletion(workRequest *common.WorkRequest, stepResult *common.StepResult, throwable *error) {
+	if throwable != nil {
+		workResponse := uc.workResponseBuilder.FailResponse(workRequest, *throwable)
+		stepId := formattedWorkerID(workRequest.GetStepNamespace(), workRequest.GetStepName())
+
+		state := uc.pollStates[stepId]
+
+		uc.submitClient.Submit(workResponse, state)
+	} else {
+		workResponse := uc.workResponseBuilder.SuccessResponse(workRequest, stepResult)
+		stepId := formattedWorkerID(workRequest.GetStepNamespace(), workRequest.GetStepName())
+
+		state := uc.pollStates[stepId]
+
+		uc.submitClient.Submit(workResponse, state)
+	}
+	uc.executingCount.Add(-1)
+}
+
+func (client *UnmeshedClient) releaseUnusedPermits(workerReceivedCount, workerRequestCount map[string]int) {
+	for workerID, requestedCount := range workerRequestCount {
+		pollState, exists := client.pollStates[workerID]
+
+		if exists {
+			receivedCount := workerReceivedCount[workerID]
+			pollState.Release(requestedCount - receivedCount)
+		}
+	}
+}
+
+func (client *UnmeshedClient) delayInMillis() int {
+	backoff := int(math.Min(30000.0, float64(client.initialDelayMillis)*math.Pow(float64(client.backoffMultiplier), float64(client.retryCount.Load()))))
+	if client.retryCount.Load() != 0 {
+		backoff += rand.Intn(client.jitterUpperBoundInMillis)
+	}
+
+	return backoff
+}
+
+func (client *UnmeshedClient) startPollingAsync() {
+	const maxRetries = 200
+	const retryInterval = 5 * time.Second
+	const reconnectDelay = 2 * time.Second
+	const noSuccessThreshold = 30 * time.Second
+
+	numberOfWorkers := int(client.ClientConfig.GetMaxWorkers())
+
+	for i := 0; i < numberOfWorkers; i++ {
+		go func() {
+			consecutiveErrors := 0
+			connectionRestored := false
+			lastSuccessfulPoll := time.Now()
+
+			for !client.stopPolling.Load() {
+				err := client.safePoll()
+
+				if err != nil {
+					consecutiveErrors++
+					client.retryCount.Add(1)
+
+					if time.Since(lastSuccessfulPoll) > noSuccessThreshold {
+						log.Printf("No successful poll for %v, attempting reconnection...", noSuccessThreshold)
+						time.Sleep(reconnectDelay)
+					}
+
+					log.Printf("Polling error: %v [Retry #%d, Consecutive Errors: %d]", err, client.retryCount.Load(), consecutiveErrors)
+
+					if consecutiveErrors >= maxRetries {
+						log.Printf("Max consecutive errors (%d) reached. Stopping polling.", maxRetries)
+						client.stopPolling.Store(true)
+						break
+					}
+
+					connectionRestored = false
+					backoff := retryInterval * time.Duration(1<<uint(min(consecutiveErrors, 5)))
+					time.Sleep(backoff)
+
+				} else {
+					if !connectionRestored {
+						connectionRestored = true
+					}
+
+					consecutiveErrors = 0
+					client.retryCount.Store(0)
+					client.pollingErrorRepoted.Store(false)
+					client.permitsZero.Store(0)
+					client.pollSizeZeroTime.Store(time.Now().UnixMilli())
+					lastSuccessfulPoll = time.Now()
+
+					time.Sleep(time.Duration(client.delayInMillis()) * time.Millisecond)
+				}
+			}
+
+			log.Println("Polling loop exited gracefully.")
+		}()
+	}
+}
+
+func (client *UnmeshedClient) safePoll() (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("panic recovered: %v", r)
+		}
+	}()
+	return client.pollForWork()
+}
+
+// Helper function to get minimum of two integers
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func (uc *UnmeshedClient) renewRegistrationWithRetry(renewRegistrationTask interface{}) (string, error) {
+	const delay = 2 * time.Second
+
+	for {
+		log.Printf("Attempting to renew registration")
+
+		results := reflect.ValueOf(renewRegistrationTask).Call(nil)
+		if len(results) != 2 {
+			return "", fmt.Errorf("expected 2 return values from renewRegistrationTask")
+		}
+
+		responseText := results[0].Interface().(string)
+		errInterface := results[1].Interface()
+
+		if errInterface != nil {
+			if err, ok := errInterface.(error); ok {
+				log.Printf("An error occurred while renewing registration: %v", err)
+				log.Printf("Retrying in %d seconds...", int(delay.Seconds()))
+				time.Sleep(delay)
+				continue
+			}
+		}
+
+		log.Printf("Successfully renewed registration for workers.")
+		return responseText, nil
+	}
+}
+
+func (uc *UnmeshedClient) Start() {
+	if !uc.ClientConfig.HasToken() {
+		log.Fatal("Credentials not configured correctly. Client configuration requires auth client id and token to be set.")
+	}
+
+	if uc.registrationClient.GetWorkers() == nil || len(uc.registrationClient.GetWorkers()) == 0 {
+		log.Printf("No workers configured. Will not poll for any work.")
+		return
+	}
+
+	for _, worker := range uc.registrationClient.GetWorkers() {
+		defaultMaxSize := worker.GetMaxInProgress()
+		workerId := formattedWorkerID(worker.GetNamespace(), worker.GetName())
+
+		uc.pollStates[workerId] = common.NewStepPollState(defaultMaxSize)
+	}
+
+	log.Printf("Registering %d workers", len(uc.registrationClient.GetWorkers()))
+
+	renewRegistrationTask := uc.registrationClient.RenewRegistration
+	_, err := uc.renewRegistrationWithRetry(renewRegistrationTask)
+	if err != nil {
+		log.Printf("Error renewing registration: %v", err)
+	}
+
+	log.Printf("Unmeshed Go SDK started")
+	go uc.startPollingAsync()
+	<-uc.done
+}
+
+func (uc *UnmeshedClient) registerWorker(worker *workersApi.Worker) error {
+	uc.workerByNameMutex.Lock()
+	defer uc.workerByNameMutex.Unlock()
+
+	if _, exists := uc.workerByName[worker.GetName()]; exists {
+		return fmt.Errorf("worker with name %s is already registered", worker.GetName())
+	}
+
+	method := worker.GetExecutionMethod()
+	if method == nil {
+		return fmt.Errorf("no execution method found for worker %s", worker.GetName())
+	}
+
+	methodType := reflect.TypeOf(method)
+
+	if methodType.NumIn() != 1 {
+		return fmt.Errorf("execution method %s must have exactly one parameter, but found %d",
+			methodType.Name(), methodType.NumIn())
+	}
+
+	uc.workerByName[worker.GetName()] = true
+	uc.Workers = append(uc.Workers, *worker)
+
+	workers := []workers.Worker{*worker}
+	uc.registrationClient.AddWorkers(workers)
+	return nil
+}
+
+func (uc *UnmeshedClient) RegisterWorker(worker *workers.Worker) error {
+	return uc.registerWorker(worker)
+}
+
+func (uc *UnmeshedClient) RegisterWorkers(workers []*workers.Worker) error {
+	for _, worker := range workers {
+		if err := uc.registerWorker(worker); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (uc *UnmeshedClient) Stop() {
+	uc.stopPolling.Store(true)
+	close(uc.done)
+}
