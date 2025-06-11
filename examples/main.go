@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	apis "github.com/unmeshed/unmeshed-go-sdk/sdk/apis/main"
 	apis2 "github.com/unmeshed/unmeshed-go-sdk/sdk/apis/workers"
@@ -115,8 +116,14 @@ func MultiOutputExample(data map[string]interface{}) (string, int) {
 	return message, count
 }
 
+func DelayedResponse(data map[string]interface{}) string {
+	time.Sleep(10 * time.Second)
+	return "Response after 10 seconds delay"
+}
+
 func main() {
 	workerList := []*apis2.Worker{
+		apis2.NewWorker(DelayedResponse, "delayed-response"),
 		apis2.NewWorker(MultiOutputExample, "multi-output-example"),
 		apis2.NewWorker(ListExample, "list-example"),
 		apis2.NewWorker(FailExample, "fail-example"),
@@ -131,8 +138,8 @@ func main() {
 	}
 
 	clientConfig := configs.NewClientConfig()
-	clientConfig.SetClientID("<<Client-ID>>")
-	clientConfig.SetAuthToken("<<Client-Token>>")
+	clientConfig.SetClientID("123")
+	clientConfig.SetAuthToken("123")
 	clientConfig.SetPort(8080)
 	clientConfig.SetWorkRequestBatchSize(50)
 	clientConfig.SetBaseURL("http://localhost")
