@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"os"
 	"time"
 
 	apis "github.com/unmeshed/unmeshed-go-sdk/sdk/apis/main"
@@ -142,6 +143,7 @@ func DelayedResponse(data map[string]interface{}) string {
 }
 
 func main() {
+	os.Setenv("DISABLE_RUNNING_WORKER_LOGS", "true")
 	workerList := []*apis2.Worker{
 		apis2.NewWorker(RescheduleExample, "reschedule-example"),
 		apis2.NewWorker(DelayedResponse, "delayed-response"),
@@ -159,8 +161,8 @@ func main() {
 	}
 
 	clientConfig := configs.NewClientConfig()
-	clientConfig.SetClientID("123")
-	clientConfig.SetAuthToken("123")
+	clientConfig.SetClientID("<< Client Id >>")
+	clientConfig.SetAuthToken("<< Auth Token >>")
 	clientConfig.SetPort(8080)
 	clientConfig.SetWorkRequestBatchSize(50)
 	clientConfig.SetBaseURL("http://localhost")

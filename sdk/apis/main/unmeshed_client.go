@@ -201,6 +201,8 @@ func (uc *UnmeshedClient) pollForWork() error {
 
 	uc.releaseUnusedPermits(workerReceivedCount, workerRequestCount)
 
+	disableLogRunningWorkerDetails := os.Getenv("DISABLE_RUNNING_WORKER_LOGS") == "true"
+
 	if currentTime-int(uc.lastPrinted.Load()) > 2 {
 		logEntries := make([]string, 0, len(workers))
 		for _, worker := range workers {
@@ -212,25 +214,29 @@ func (uc *UnmeshedClient) pollForWork() error {
 				available := state.MaxAvailable()
 				total := state.GetTotalCount()
 				requested := workerRequestCount[workerId]
-				logEntries = append(logEntries,
-					fmt.Sprintf("%s:%s = Available[%d] / [%d] / [%d]",
-						worker.GetNamespace(),
-						worker.GetName(),
-						available,
-						requested,
-						total))
+				if !disableLogRunningWorkerDetails {
+					logEntries = append(logEntries,
+						fmt.Sprintf("%s:%s = Available[%d] / [%d] / [%d]",
+							worker.GetNamespace(),
+							worker.GetName(),
+							available,
+							requested,
+							total))
+				}
 			}
 		}
 
 		executingCount := uc.executingCount.Load()
 		submitTrackerSize := int32(uc.submitClient.GetSubmitTrackerSize())
-		log.Printf("Running: %d st: %d t: %d - permits %s",
-			executingCount,
-			submitTrackerSize,
-			executingCount+submitTrackerSize,
-			strings.Join(logEntries, ", "))
+		if !disableLogRunningWorkerDetails {
+			log.Printf("Running: %d st: %d t: %d - permits %s",
+				executingCount,
+				submitTrackerSize,
+				executingCount+submitTrackerSize,
+				strings.Join(logEntries, ", "))
 
-		uc.lastPrinted.Store(int32(currentTime))
+			uc.lastPrinted.Store(int32(currentTime))
+		}
 	}
 
 	return nil
