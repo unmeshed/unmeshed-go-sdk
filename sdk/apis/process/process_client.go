@@ -89,14 +89,15 @@ func (pc *ProcessClient) RunProcessSync(processRequestData *common.ProcessReques
 	return &processData, nil
 }
 
-func (pc *ProcessClient) GetProcessData(processID int64, includeSteps bool) (*common.ProcessData, error) {
+func (pc *ProcessClient) GetProcessData(processID int64, includeSteps bool, hideLargeValues bool) (*common.ProcessData, error) {
 	if processID == 0 {
 		return nil, fmt.Errorf("process ID cannot be zero")
 	}
 
 	url := fmt.Sprintf("%scontext/%d", pc.runProcessRequestURL, processID)
 	params := map[string]interface{}{
-		"includeSteps": includeSteps,
+		"includeSteps":    includeSteps,
+		"hideLargeValues": hideLargeValues,
 	}
 
 	response, err := pc.httpRequestFactory.CreateGetRequest(url, params)

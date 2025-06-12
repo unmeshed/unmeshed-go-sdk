@@ -493,8 +493,8 @@ func (uc *UnmeshedClient) RunProcessAsync(processRequestData *common.ProcessRequ
 	return uc.processClient.RunProcessAsync(processRequestData)
 }
 
-func (uc *UnmeshedClient) GetProcessData(processID int64, includeSteps bool) (*common.ProcessData, error) {
-	return uc.processClient.GetProcessData(processID, includeSteps)
+func (uc *UnmeshedClient) GetProcessData(processID int64, includeSteps bool, hideLargeValues bool) (*common.ProcessData, error) {
+	return uc.processClient.GetProcessData(processID, includeSteps, hideLargeValues)
 }
 
 func (uc *UnmeshedClient) GetStepData(stepID int64) (*common.StepData, error) {

@@ -108,41 +108,61 @@ func FailExample(data map[string]interface{}) error {
 }
 ```
 
+🛑 Reduce Log Noise for Running Workers
+```
+    os.Setenv("DISABLE_RUNNING_WORKER_LOGS", "true")
+```
+
+Display/Hide Large values as part of output during process search
+
+Use flag `hideLargeValues` as part of `GetProcessData(processId, includeSteps, hideLargeValues)` to include exclude large output payloads in execution response
+
+```
+        processData1Retrieved1, err := unmeshedClient.GetProcessData(processData1.ProcessID, false, false)
+        if err != nil {
+            fmt.Printf("Error getting process data: %v\n", err)
+            return
+        }
+        fmt.Printf("Retrieving process %d returned %+v\n", processData1.ProcessID, processData1Retrieved1)
+        fmt.Printf("Since the flag to include steps was false the steps was not returned: %d\n", len(processData1Retrieved1.StepRecords))
+
+```
+
 To reschedule a worker with same iteration use return type of function as StepResult and
 use KeepRunning and RescheduleAfterSeconds fields to control behaviour whether to complete or Reschedule
 ```
 var GlobalCounter int = 0
 reschedule it
-func RescheduleWorkerExample(data map[string]interface{}) *common.StepResult {
-	fmt.Println("Reschedule worker running with counter", GlobalCounter)
-	if GlobalCounter > 5 {
-		stepResult := common.NewStepResult("Response after 5 iterations")
-		stepResult.KeepRunning = false
-		stepResult.RescheduleAfterSeconds = 0
-		GlobalCounter = 0
-		return stepResult
+    func RescheduleWorkerExample(data map[string]interface{}) *common.StepResult {
+        fmt.Println("Reschedule worker running with counter", GlobalCounter)
+        if GlobalCounter > 5 {
+            stepResult := common.NewStepResult("Response after 5 iterations")
+            stepResult.KeepRunning = false
+            stepResult.RescheduleAfterSeconds = 0
+            GlobalCounter = 0
+            return stepResult
 
-	}
-	GlobalCounter++
-	stepResult := common.NewStepResult("Rescheduling the worker")
-	stepResult.KeepRunning = true
-	stepResult.RescheduleAfterSeconds = 2
-	return stepResult
-}
+        }
+        GlobalCounter++
+        stepResult := common.NewStepResult("Rescheduling the worker")
+        stepResult.KeepRunning = true
+        stepResult.RescheduleAfterSeconds = 2
+        return stepResult
+    }
 ```
 
 ```
 // Returns a list of strings
-func ListExample(data map[string]interface{}) []string {
-    return []string{"hello", "world"}
-}
+    func ListExample(data map[string]interface{}) []string {
+        return []string{"hello", "world"}
+    }
 ```
 
 ```
-// Multiple outputs
-func MultiOutputExample(data map[string]interface{}) (string, int) {
-    return "Processed Successfully", len(data)
-}
+    // Multiple outputs
+    func MultiOutputExample(data map[string]interface{}) (string, int) {
+        return "Processed Successfully", len(data)
+    }
 ```
 
 Register your workers like this:
@@ -196,204 +216,204 @@ import (
     "github.com/unmeshed/unmeshed-go-sdk/sdk/configs"
 )
 
-// Example worker functions
-func Sum(data map[string]int) int {
-    sum := 0
-    for _, v := range data {
-        sum += v
-    }
-    return sum
-}
-
-func FailExample(data map[string]interface{}) error {
-    return errors.New("failing worker")
-}
-
-func ListExample(data map[string]interface{}) []string {
-    return []string{"hello", "world"}
-}
-
-func DelayedResponse(data map[string]interface{}) string {
-    time.Sleep(10 * time.Second)
-    return "Response after 10 seconds delay"
-}
-
-func main() {
-    // Configure the client
-    cfg := configs.NewClientConfig()
-    cfg.SetClientID("your-client-id")
-    cfg.SetAuthToken("your-auth-token")
-    cfg.SetPort(8080)
-    cfg.SetBaseURL("http://localhost")
-    cfg.SetWorkRequestBatchSize(50)
-    cfg.SetInitialDelayMillis(50)
-    cfg.SetStepTimeoutMillis(36000000)
-    cfg.SetMaxWorkers(20)
-
-    // Create and configure the client
-    client := apis.NewUnmeshedClient(cfg)
-
-    // Register workers
-    workers := []*apis2.Worker{
-        apis2.NewWorker(Sum, "sum"),
-        apis2.NewWorker(FailExample, "fail-example"),
-        apis2.NewWorker(ListExample, "list-example"),
-        apis2.NewWorker(DelayedResponse, "delayed-response"),
-    }
-    client.RegisterWorkers(workers)
-
-    // Start the client in a goroutine
-    done := make(chan struct{})
-    go func() {
-        client.Start()
-        close(done)
-    }()
-
-    // Example 1: Create and run a process synchronously
-    namespace := "default"
-    name := "test_process"
-    version := 1
-    requestID := "req001"
-    correlationID := "corr001"
-    processRequest := &common.ProcessRequestData{
-        Namespace:     &namespace,
-        Name:          &name,
-        Version:       &version,
-        RequestID:     &requestID,
-        CorrelationID: &correlationID,
-        Input: map[string]interface{}{
-            "test1": "value",
-            "test2": 100,
-            "test3": 100.0,
-        },
+    // Example worker functions
+    func Sum(data map[string]int) int {
+        sum := 0
+        for _, v := range data {
+            sum += v
+        }
+        return sum
     }
 
-    processData1, err := client.RunProcessSyncWithDefaultTimeout(processRequest)
-    if err != nil {
-        fmt.Printf("Error running process sync: %v\n", err)
-        return
+    func FailExample(data map[string]interface{}) error {
+        return errors.New("failing worker")
     }
-    fmt.Printf("Sync execution returned: %+v\n", processData1)
 
-    // Example 2: Run process asynchronously
-    processData2, err := client.RunProcessAsync(processRequest)
-    if err != nil {
-        fmt.Printf("Error running process async: %v\n", err)
-        return
+    func ListExample(data map[string]interface{}) []string {
+        return []string{"hello", "world"}
     }
-    fmt.Printf("Async execution returned: %+v\n", processData2)
 
-    // Example 3: Get process data without steps
-    processData1Retrieved1, err := client.GetProcessData(processData1.ProcessID, false)
-    if err != nil {
-        fmt.Printf("Error getting process data: %v\n", err)
-        return
+    func DelayedResponse(data map[string]interface{}) string {
+        time.Sleep(10 * time.Second)
+        return "Response after 10 seconds delay"
     }
-    fmt.Printf("Process data without steps: %+v\n", processData1Retrieved1)
 
-    // Example 4: Get process data with steps
-    processData1Retrieved2, err := client.GetProcessData(processData1.ProcessID, true)
-    if err != nil {
-        fmt.Printf("Error getting process data with steps: %v\n", err)
-        return
-    }
-    fmt.Printf("Process data with steps: %+v\n", processData1Retrieved2)
+    func main() {
+        // Configure the client
+        cfg := configs.NewClientConfig()
+        cfg.SetClientID("your-client-id")
+        cfg.SetAuthToken("your-auth-token")
+        cfg.SetPort(8080)
+        cfg.SetBaseURL("http://localhost")
+        cfg.SetWorkRequestBatchSize(50)
+        cfg.SetInitialDelayMillis(50)
+        cfg.SetStepTimeoutMillis(36000000)
+        cfg.SetMaxWorkers(20)
 
-    // Example 5: Get step data
-    if len(processData1Retrieved2.StepRecords) > 0 {
-        stepData1, err := client.GetStepData(processData1Retrieved2.StepRecords[0].StepID)
+        // Create and configure the client
+        client := apis.NewUnmeshedClient(cfg)
+
+        // Register workers
+        workers := []*apis2.Worker{
+            apis2.NewWorker(Sum, "sum"),
+            apis2.NewWorker(FailExample, "fail-example"),
+            apis2.NewWorker(ListExample, "list-example"),
+            apis2.NewWorker(DelayedResponse, "delayed-response"),
+        }
+        client.RegisterWorkers(workers)
+
+        // Start the client in a goroutine
+        done := make(chan struct{})
+        go func() {
+            client.Start()
+            close(done)
+        }()
+
+        // Example 1: Create and run a process synchronously
+        namespace := "default"
+        name := "test_process"
+        version := 1
+        requestID := "req001"
+        correlationID := "corr001"
+        processRequest := &common.ProcessRequestData{
+            Namespace:     &namespace,
+            Name:          &name,
+            Version:       &version,
+            RequestID:     &requestID,
+            CorrelationID: &correlationID,
+            Input: map[string]interface{}{
+                "test1": "value",
+                "test2": 100,
+                "test3": 100.0,
+            },
+        }
+
+        processData1, err := client.RunProcessSyncWithDefaultTimeout(processRequest)
         if err != nil {
-            fmt.Printf("Error getting step data: %v\n", err)
+            fmt.Printf("Error running process sync: %v\n", err)
             return
         }
-        fmt.Printf("Step data: %+v\n", stepData1)
-    }
+        fmt.Printf("Sync execution returned: %+v\n", processData1)
 
-    // Example 6: Search process executions
-    searchNamespace := "default"
-    searchNames := []string{"test_process"}
-    processSearchRequest := &common.ProcessSearchRequest{
-        Names:     searchNames,
-        Limit:     20,
-        Namespace: &searchNamespace,
-    }
-    processesSearchResults, err := client.SearchProcessExecutions(processSearchRequest)
-    if err != nil {
-        fmt.Printf("Error searching process executions: %v\n", err)
-        return
-    }
-    fmt.Printf("Search returned %d results\n", len(processesSearchResults))
+        // Example 2: Run process asynchronously
+        processData2, err := client.RunProcessAsync(processRequest)
+        if err != nil {
+            fmt.Printf("Error running process async: %v\n", err)
+            return
+        }
+        fmt.Printf("Async execution returned: %+v\n", processData2)
 
-    // Example 7: Rerun process
-    rerunProcessData, err := client.Rerun(processData1.ProcessID, 1)
-    if err != nil {
-        fmt.Printf("Error rerunning process: %v\n", err)
-        return
-    }
-    fmt.Printf("Rerun process data: %+v\n", rerunProcessData)
+        // Example 3: Get process data without steps
+        processData1Retrieved1, err := client.GetProcessData(processData1.ProcessID, false, false)
+        if err != nil {
+            fmt.Printf("Error getting process data: %v\n", err)
+            return
+        }
+        fmt.Printf("Process data without steps: %+v\n", processData1Retrieved1)
 
-    // Example 8: Bulk terminate processes
-    actionResponse, err := client.BulkTerminate([]int64{processData1.ProcessID, 1, 2}, "Terminating processes")
-    if err != nil {
-        fmt.Printf("Error bulk terminating processes: %v\n", err)
-        return
-    }
-    fmt.Printf("Bulk terminate response: %+v\n", actionResponse.Details)
+        // Example 4: Get process data with steps
+        processData1Retrieved2, err := client.GetProcessData(processData1.ProcessID, true, false)
+        if err != nil {
+            fmt.Printf("Error getting process data with steps: %v\n", err)
+            return
+        }
+        fmt.Printf("Process data with steps: %+v\n", processData1Retrieved2)
 
-    // Example 9: Bulk resume processes
-    actionResponse, err = client.BulkResume([]int64{processData1.ProcessID, 1, 2})
-    if err != nil {
-        fmt.Printf("Error bulk resuming processes: %v\n", err)
-        return
-    }
-    fmt.Printf("Bulk resume response: %+v\n", actionResponse.Details)
+        // Example 5: Get step data
+        if len(processData1Retrieved2.StepRecords) > 0 {
+            stepData1, err := client.GetStepData(processData1Retrieved2.StepRecords[0].StepID)
+            if err != nil {
+                fmt.Printf("Error getting step data: %v\n", err)
+                return
+            }
+            fmt.Printf("Step data: %+v\n", stepData1)
+        }
 
-    // Example 10: Bulk review processes
-    actionResponse, err = client.BulkReviewed([]int64{processData1.ProcessID, 1, 2}, "Reviewing processes")
-    if err != nil {
-        fmt.Printf("Error bulk reviewing processes: %v\n", err)
-        return
-    }
-    fmt.Printf("Bulk review response: %+v\n", actionResponse.Details)
+        // Example 6: Search process executions
+        searchNamespace := "default"
+        searchNames := []string{"test_process"}
+        processSearchRequest := &common.ProcessSearchRequest{
+            Names:     searchNames,
+            Limit:     20,
+            Namespace: &searchNamespace,
+        }
+        processesSearchResults, err := client.SearchProcessExecutions(processSearchRequest)
+        if err != nil {
+            fmt.Printf("Error searching process executions: %v\n", err)
+            return
+        }
+        fmt.Printf("Search returned %d results\n", len(processesSearchResults))
 
-    // Example 11: Invoke API mapping GET
-    response, err := client.InvokeAPIMappingGet(
-        "test_process_endpoint",
-        "req_id--1",
-        "correl_id--1",
-        common.ApiCallTypeSync,
-    )
-    if err != nil {
-        fmt.Printf("Error invoking API mapping GET: %v\n", err)
-        return
-    }
-    fmt.Printf("API mapping GET response: %+v\n", response)
+        // Example 7: Rerun process
+        rerunProcessData, err := client.Rerun(processData1.ProcessID, 1)
+        if err != nil {
+            fmt.Printf("Error rerunning process: %v\n", err)
+            return
+        }
+        fmt.Printf("Rerun process data: %+v\n", rerunProcessData)
 
-    // Example 12: Invoke API mapping POST
-    response, err = client.InvokeAPIMappingPost(
-        "test_process_endpoint",
-        map[string]interface{}{"test": "value"},
-        "req_id--1",
-        "correl_id--1",
-        common.ApiCallTypeSync,
-    )
-    if err != nil {
-        fmt.Printf("Error invoking API mapping POST: %v\n", err)
-        return
-    }
-    fmt.Printf("API mapping POST response: %+v\n", response)
+        // Example 8: Bulk terminate processes
+        actionResponse, err := client.BulkTerminate([]int64{processData1.ProcessID, 1, 2}, "Terminating processes")
+        if err != nil {
+            fmt.Printf("Error bulk terminating processes: %v\n", err)
+            return
+        }
+        fmt.Printf("Bulk terminate response: %+v\n", actionResponse.Details)
 
-    // Handle graceful shutdown
-    sigChan := make(chan os.Signal, 1)
-    signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+        // Example 9: Bulk resume processes
+        actionResponse, err = client.BulkResume([]int64{processData1.ProcessID, 1, 2})
+        if err != nil {
+            fmt.Printf("Error bulk resuming processes: %v\n", err)
+            return
+        }
+        fmt.Printf("Bulk resume response: %+v\n", actionResponse.Details)
 
-    select {
-    case <-sigChan:
-        fmt.Println("\nReceived shutdown signal. Stopping client...")
-    case <-done:
-        fmt.Println("Client finished execution")
+        // Example 10: Bulk review processes
+        actionResponse, err = client.BulkReviewed([]int64{processData1.ProcessID, 1, 2}, "Reviewing processes")
+        if err != nil {
+            fmt.Printf("Error bulk reviewing processes: %v\n", err)
+            return
+        }
+        fmt.Printf("Bulk review response: %+v\n", actionResponse.Details)
+
+        // Example 11: Invoke API mapping GET
+        response, err := client.InvokeAPIMappingGet(
+            "test_process_endpoint",
+            "req_id--1",
+            "correl_id--1",
+            common.ApiCallTypeSync,
+        )
+        if err != nil {
+            fmt.Printf("Error invoking API mapping GET: %v\n", err)
+            return
+        }
+        fmt.Printf("API mapping GET response: %+v\n", response)
+
+        // Example 12: Invoke API mapping POST
+        response, err = client.InvokeAPIMappingPost(
+            "test_process_endpoint",
+            map[string]interface{}{"test": "value"},
+            "req_id--1",
+            "correl_id--1",
+            common.ApiCallTypeSync,
+        )
+        if err != nil {
+            fmt.Printf("Error invoking API mapping POST: %v\n", err)
+            return
+        }
+        fmt.Printf("API mapping POST response: %+v\n", response)
+
+        // Handle graceful shutdown
+        sigChan := make(chan os.Signal, 1)
+        signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+
+        select {
+        case <-sigChan:
+            fmt.Println("\nReceived shutdown signal. Stopping client...")
+        case <-done:
+            fmt.Println("Client finished execution")
+        }
     }
-}
 ```
 
 This example demonstrates:

@@ -220,7 +220,7 @@ func main() {
 	fmt.Printf("Async execution of process request %+v returned %+v\n", processRequest, processData2)
 
 	// Get process data without steps
-	processData1Retrieved1, err := unmeshedClient.GetProcessData(processData1.ProcessID, false)
+	processData1Retrieved1, err := unmeshedClient.GetProcessData(processData1.ProcessID, false, false)
 	if err != nil {
 		fmt.Printf("Error getting process data: %v\n", err)
 		return
@@ -229,7 +229,7 @@ func main() {
 	fmt.Printf("Since the flag to include steps was false the steps was not returned: %d\n", len(processData1Retrieved1.StepRecords))
 
 	// Get process data with steps
-	processData1Retrieved2, err := unmeshedClient.GetProcessData(processData1.ProcessID, true)
+	processData1Retrieved2, err := unmeshedClient.GetProcessData(processData1.ProcessID, true, false)
 	if err != nil {
 		fmt.Printf("Error getting process data with steps: %v\n", err)
 		return
