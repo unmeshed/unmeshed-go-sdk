@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	apis "github.com/unmeshed/unmeshed-go-sdk/sdk/apis/main"
@@ -175,6 +177,157 @@ func main() {
 	worker := apis2.NewWorker(ManuallyRegisteredWorker, "manually-registered-worker")
 	unmeshedClient.RegisterWorker(worker)
 
-	// Start the client - it will run in background
-	unmeshedClient.Start()
+	done := make(chan struct{})
+
+	///Start the client in goroutine
+	go func() {
+		unmeshedClient.Start()
+		close(done)
+	}()
+
+	namespace := "default"
+	name := "test_process"
+	version := 1
+	requestID := "req001"
+	correlationID := "corr001"
+	processRequest := &common.ProcessRequestData{
+		Namespace:     &namespace,
+		Name:          &name,
+		Version:       &version,
+		RequestID:     &requestID,
+		CorrelationID: &correlationID,
+		Input: map[string]interface{}{
+			"test1": "value",
+			"test2": 100,
+			"test3": 100.0,
+		},
+	}
+
+	// Run process synchronously
+	processData1, err := unmeshedClient.RunProcessSyncWithDefaultTimeout(processRequest)
+	if err != nil {
+		fmt.Printf("Error running process sync: %v\n", err)
+		return
+	}
+	fmt.Printf("Sync execution of process request %+v returned %+v\n", processRequest, processData1)
+
+	// Run process asynchronously
+	processData2, err := unmeshedClient.RunProcessAsync(processRequest)
+	if err != nil {
+		fmt.Printf("Error running process async: %v\n", err)
+		return
+	}
+	fmt.Printf("Async execution of process request %+v returned %+v\n", processRequest, processData2)
+
+	// Get process data without steps
+	processData1Retrieved1, err := unmeshedClient.GetProcessData(processData1.ProcessID, false)
+	if err != nil {
+		fmt.Printf("Error getting process data: %v\n", err)
+		return
+	}
+	fmt.Printf("Retrieving process %d returned %+v\n", processData1.ProcessID, processData1Retrieved1)
+	fmt.Printf("Since the flag to include steps was false the steps was not returned: %d\n", len(processData1Retrieved1.StepRecords))
+
+	// Get process data with steps
+	processData1Retrieved2, err := unmeshedClient.GetProcessData(processData1.ProcessID, true)
+	if err != nil {
+		fmt.Printf("Error getting process data with steps: %v\n", err)
+		return
+	}
+	fmt.Printf("Retrieving process %d returned %+v\n", processData1.ProcessID, processData1Retrieved2)
+	fmt.Printf("Since the flag to include steps was true the steps was returned: %d\n", len(processData1Retrieved2.StepRecords))
+
+	// Get step data
+	if len(processData1Retrieved2.StepRecords) > 0 {
+		stepData1, err := unmeshedClient.GetStepData(processData1Retrieved2.StepRecords[0].StepID)
+		if err != nil {
+			fmt.Printf("Error getting step data: %v\n", err)
+			return
+		}
+		fmt.Printf("Retrieving step data %d returned %+v\n", stepData1.StepID, stepData1)
+	}
+
+	// Search process executions
+	searchNamespace := "default"
+	searchNames := []string{"test_process"}
+	processSearchRequest := &common.ProcessSearchRequest{
+		Names:     searchNames,
+		Limit:     20,
+		Namespace: &searchNamespace,
+	}
+	processesSearchResults, err := unmeshedClient.SearchProcessExecutions(processSearchRequest)
+	if err != nil {
+		fmt.Printf("Error searching process executions: %v\n", err)
+		return
+	}
+	fmt.Printf("Search returned %d results\n", len(processesSearchResults))
+
+	// Rerun process
+	rerunProcessData, err := unmeshedClient.Rerun(processData1.ProcessID, 1)
+	if err != nil {
+		fmt.Printf("Error rerunning process: %v\n", err)
+		return
+	}
+	fmt.Printf("Rerun of process %d returned %+v\n", processData1.ProcessID, rerunProcessData)
+
+	// Bulk terminate processes
+	actionResponse, err := unmeshedClient.BulkTerminate([]int64{processData1.ProcessID, 1, 2}, "Terminating processes")
+	if err != nil {
+		fmt.Printf("Error bulk terminating processes: %v\n", err)
+		return
+	}
+	fmt.Printf("Bulk terminate of 3 processes returned %+v\n", actionResponse.Details)
+
+	// Bulk resume processes
+	actionResponse, err = unmeshedClient.BulkResume([]int64{processData1.ProcessID, 1, 2})
+	if err != nil {
+		fmt.Printf("Error bulk resuming processes: %v\n", err)
+		return
+	}
+	fmt.Printf("Bulk resume of 3 processes returned %+v\n", actionResponse.Details)
+
+	// Bulk review processes
+	actionResponse, err = unmeshedClient.BulkReviewed([]int64{processData1.ProcessID, 1, 2}, "Reviewing processes")
+	if err != nil {
+		fmt.Printf("Error bulk reviewing processes: %v\n", err)
+		return
+	}
+	fmt.Printf("Bulk review of 3 processes returned %+v\n", actionResponse.Details)
+
+	// Invoke API mapping GET
+	response, err := unmeshedClient.InvokeAPIMappingGet(
+		"test_process_endpoint",
+		"req_id--1",
+		"correl_id--1",
+		common.ApiCallTypeSync,
+	)
+	if err != nil {
+		fmt.Printf("Error invoking API mapping GET: %v\n", err)
+		return
+	}
+	fmt.Printf("API mapped endpoint invocation using GET returned %+v\n", response)
+
+	// Invoke API mapping POST
+	response, err = unmeshedClient.InvokeAPIMappingPost(
+		"test_process_endpoint",
+		map[string]interface{}{"test": "value"},
+		"req_id--1",
+		"correl_id--1",
+		common.ApiCallTypeSync,
+	)
+	if err != nil {
+		fmt.Printf("Error invoking API mapping POST: %v\n", err)
+		return
+	}
+	fmt.Printf("API mapped endpoint invocation using POST returned %+v\n", response)
+
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+
+	select {
+	case <-sigChan:
+		fmt.Println("\nReceived shutdown signal. Stopping client...")
+	case <-done:
+		fmt.Println("Client finished execution")
+	}
 }

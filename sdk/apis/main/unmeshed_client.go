@@ -15,6 +15,7 @@ import (
 
 	apis "github.com/unmeshed/unmeshed-go-sdk/sdk/apis/http"
 	poller "github.com/unmeshed/unmeshed-go-sdk/sdk/apis/poller"
+	process "github.com/unmeshed/unmeshed-go-sdk/sdk/apis/process"
 	register "github.com/unmeshed/unmeshed-go-sdk/sdk/apis/register"
 	workerRunner "github.com/unmeshed/unmeshed-go-sdk/sdk/apis/runner"
 	submit "github.com/unmeshed/unmeshed-go-sdk/sdk/apis/submit"
@@ -71,6 +72,7 @@ type UnmeshedClient struct {
 	registrationClient       *register.RegistrationClient
 	pollerClient             *poller.PollerClient
 	submitClient             *submit.SubmitClient
+	processClient            *process.ProcessClient
 	workResponseBuilder      *common.WorkResponseBuilder
 	workerRunner             *workerRunner.WorkerRunner
 	stopPolling              atomic.Bool
@@ -92,6 +94,7 @@ func NewUnmeshedClient(
 	httpRequestFactory := apis.NewHttpRequestFactory(clientConfig)
 	pollerClient := poller.NewPollerClient(clientConfig, httpClientFactory, httpRequestFactory)
 	submitClient := submit.NewSubmitClient(httpRequestFactory, clientConfig)
+	processClient := process.NewProcessClient(httpClientFactory, httpRequestFactory, clientConfig)
 
 	unmeshedClient := &UnmeshedClient{
 		ClientConfig:             clientConfig,
@@ -112,6 +115,7 @@ func NewUnmeshedClient(
 		httpRequestFactory:       httpRequestFactory,
 		registrationClient:       register.NewRegistrationClient(clientConfig, httpClientFactory, httpRequestFactory),
 		submitClient:             submitClient,
+		processClient:            processClient,
 		pollerClient:             pollerClient,
 		workResponseBuilder:      common.NewWorkResponseBuilder(),
 		workerRunner:             workerRunner.NewWorkerRunner(),
@@ -475,4 +479,52 @@ func (uc *UnmeshedClient) RegisterWorkers(workers []*workers.Worker) error {
 func (uc *UnmeshedClient) Stop() {
 	uc.stopPolling.Store(true)
 	close(uc.done)
+}
+
+func (uc *UnmeshedClient) RunProcessSyncWithDefaultTimeout(processRequestData *common.ProcessRequestData) (*common.ProcessData, error) {
+	return uc.processClient.RunProcessSync(processRequestData, 0)
+}
+
+func (uc *UnmeshedClient) RunProcessSync(processRequestData *common.ProcessRequestData, processTimeoutSeconds int) (*common.ProcessData, error) {
+	return uc.processClient.RunProcessSync(processRequestData, processTimeoutSeconds)
+}
+
+func (uc *UnmeshedClient) RunProcessAsync(processRequestData *common.ProcessRequestData) (*common.ProcessData, error) {
+	return uc.processClient.RunProcessAsync(processRequestData)
+}
+
+func (uc *UnmeshedClient) GetProcessData(processID int64, includeSteps bool) (*common.ProcessData, error) {
+	return uc.processClient.GetProcessData(processID, includeSteps)
+}
+
+func (uc *UnmeshedClient) GetStepData(stepID int64) (*common.StepData, error) {
+	return uc.processClient.GetStepData(stepID)
+}
+
+func (uc *UnmeshedClient) SearchProcessExecutions(params *common.ProcessSearchRequest) ([]*common.ProcessData, error) {
+	return uc.processClient.SearchProcessExecutions(params)
+}
+
+func (uc *UnmeshedClient) InvokeAPIMappingGet(endpoint string, id string, correlationID string, apiCallType common.ApiCallType) (map[string]interface{}, error) {
+	return uc.processClient.InvokeAPIMappingGet(endpoint, id, correlationID, apiCallType)
+}
+
+func (uc *UnmeshedClient) InvokeAPIMappingPost(endpoint string, input map[string]interface{}, id string, correlationID string, apiCallType common.ApiCallType) (map[string]interface{}, error) {
+	return uc.processClient.InvokeAPIMappingPost(endpoint, input, id, correlationID, apiCallType)
+}
+
+func (uc *UnmeshedClient) BulkTerminate(processIDs []int64, reason string) (*common.ProcessActionResponseData, error) {
+	return uc.processClient.BulkTerminate(processIDs, reason)
+}
+
+func (uc *UnmeshedClient) BulkResume(processIDs []int64) (*common.ProcessActionResponseData, error) {
+	return uc.processClient.BulkResume(processIDs)
+}
+
+func (uc *UnmeshedClient) BulkReviewed(processIDs []int64, reason string) (*common.ProcessActionResponseData, error) {
+	return uc.processClient.BulkReviewed(processIDs, reason)
+}
+
+func (uc *UnmeshedClient) Rerun(processID int64, version int) (*common.ProcessData, error) {
+	return uc.processClient.Rerun(processID, version)
 }
