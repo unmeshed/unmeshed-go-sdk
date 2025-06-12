@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -62,26 +63,65 @@ func NewHttpRequestFactory(clientConfig *configs.ClientConfig) *HttpRequestFacto
 }
 
 func (factory *HttpRequestFactory) buildURI(path string, params map[string]interface{}) string {
-	baseURL := factory.baseURL
-
-	baseURL = strings.TrimSuffix(baseURL, "/")
+	baseURL := strings.TrimSuffix(factory.baseURL, "/")
 
 	parsedURL, err := url.Parse(baseURL)
 	if err != nil {
-		panic("Invalid base URL")
+		panic(fmt.Sprintf("Invalid base URL: %v", err))
 	}
 
+	// Format base path with port if not already present
 	hasPort := parsedURL.Port() != ""
 	var urlStr string
 	if hasPort || strings.HasPrefix(baseURL, "https:") {
-		urlStr = fmt.Sprintf("%s/%s", baseURL, path)
+		urlStr = fmt.Sprintf("%s/%s", baseURL, strings.TrimPrefix(path, "/"))
 	} else {
-		urlStr = fmt.Sprintf("%s:%d/%s", baseURL, factory.port, path)
+		urlStr = fmt.Sprintf("%s:%d/%s", baseURL, factory.port, strings.TrimPrefix(path, "/"))
 	}
 
-	if params != nil {
-		queryString := url.QueryEscape(fmt.Sprintf("%v", params))
-		urlStr = fmt.Sprintf("%s?%s", urlStr, queryString)
+	if len(params) > 0 {
+		query := url.Values{}
+		for key, value := range params {
+			if value == nil {
+				continue
+			}
+
+			switch v := value.(type) {
+			case string:
+				query.Add(key, v)
+			case fmt.Stringer:
+				query.Add(key, v.String())
+			case int:
+				query.Add(key, strconv.Itoa(v))
+			case int32:
+				query.Add(key, strconv.FormatInt(int64(v), 10))
+			case int64:
+				query.Add(key, strconv.FormatInt(v, 10))
+			case float32:
+				query.Add(key, strconv.FormatFloat(float64(v), 'f', -1, 32))
+			case float64:
+				query.Add(key, strconv.FormatFloat(v, 'f', -1, 64))
+			case bool:
+				query.Add(key, strconv.FormatBool(v))
+			case []string:
+				for _, s := range v {
+					query.Add(key, s)
+				}
+			case []interface{}:
+				for _, item := range v {
+					if item == nil {
+						continue
+					}
+					query.Add(key, fmt.Sprintf("%v", item))
+				}
+			default:
+				query.Add(key, fmt.Sprintf("%v", value))
+			}
+		}
+		encoded := query.Encode()
+		if encoded != "" {
+			urlStr = fmt.Sprintf("%s?%s", urlStr, encoded)
+		}
 	}
 
 	return urlStr

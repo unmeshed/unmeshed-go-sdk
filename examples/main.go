@@ -163,7 +163,7 @@ func main() {
 	}
 
 	clientConfig := configs.NewClientConfig()
-	clientConfig.SetClientID("<< Client Id >>")
+	clientConfig.SetClientID("<< Client Id >")
 	clientConfig.SetAuthToken("<< Auth Token >>")
 	clientConfig.SetPort(8080)
 	clientConfig.SetWorkRequestBatchSize(50)
@@ -239,7 +239,7 @@ func main() {
 
 	// Get step data
 	if len(processData1Retrieved2.StepRecords) > 0 {
-		stepData1, err := unmeshedClient.GetStepData(processData1Retrieved2.StepRecords[0].StepID)
+		stepData1, err := unmeshedClient.GetStepData(3950120)
 		if err != nil {
 			fmt.Printf("Error getting step data: %v\n", err)
 			return
@@ -271,32 +271,32 @@ func main() {
 	fmt.Printf("Rerun of process %d returned %+v\n", processData1.ProcessID, rerunProcessData)
 
 	// Bulk terminate processes
-	actionResponse, err := unmeshedClient.BulkTerminate([]int64{processData1.ProcessID, 1, 2}, "Terminating processes")
+	actionResponse, err := unmeshedClient.BulkTerminate([]int64{3950142}, "Terminating processes")
 	if err != nil {
 		fmt.Printf("Error bulk terminating processes: %v\n", err)
 		return
 	}
-	fmt.Printf("Bulk terminate of 3 processes returned %+v\n", actionResponse.Details)
+	fmt.Printf("Bulk terminate of 1 process returned %+v\n", actionResponse.Details)
 
 	// Bulk resume processes
-	actionResponse, err = unmeshedClient.BulkResume([]int64{processData1.ProcessID, 1, 2})
+	actionResponse, err = unmeshedClient.BulkResume([]int64{3950154})
 	if err != nil {
 		fmt.Printf("Error bulk resuming processes: %v\n", err)
 		return
 	}
-	fmt.Printf("Bulk resume of 3 processes returned %+v\n", actionResponse.Details)
+	fmt.Printf("Bulk resume of 1 process returned %+v\n", actionResponse.Details)
 
 	// Bulk review processes
-	actionResponse, err = unmeshedClient.BulkReviewed([]int64{processData1.ProcessID, 1, 2}, "Reviewing processes")
+	actionResponse, err = unmeshedClient.BulkReviewed([]int64{3950184}, "Reviewing processes")
 	if err != nil {
 		fmt.Printf("Error bulk reviewing processes: %v\n", err)
 		return
 	}
-	fmt.Printf("Bulk review of 3 processes returned %+v\n", actionResponse.Details)
+	fmt.Printf("Bulk review of 1 process returned %+v\n", actionResponse.Details)
 
 	// Invoke API mapping GET
 	response, err := unmeshedClient.InvokeAPIMappingGet(
-		"test_process_endpoint",
+		"test_process_endpoint/O0ZjQNLhc5JGjcLKVajV/w4VliQzkGnOafPk8V6AJ",
 		"req_id--1",
 		"correl_id--1",
 		common.ApiCallTypeSync,
@@ -309,7 +309,7 @@ func main() {
 
 	// Invoke API mapping POST
 	response, err = unmeshedClient.InvokeAPIMappingPost(
-		"test_process_endpoint",
+		"test_process_endpoint/O0ZjQNLhc5JGjcLKVajV/w4VliQzkGnOafPk8V6AJ",
 		map[string]interface{}{"test": "value"},
 		"req_id--1",
 		"correl_id--1",
