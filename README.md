@@ -108,6 +108,28 @@ func FailExample(data map[string]interface{}) error {
 }
 ```
 
+To reschedule a worker with same iteration use return type of function as StepResult and
+use KeepRunning and RescheduleAfterSeconds fields to control behaviour whether to complete or Reschedule
+```
+var GlobalCounter int = 0
+reschedule it
+func RescheduleWorkerExample(data map[string]interface{}) *common.StepResult {
+	fmt.Println("Reschedule worker running with counter", GlobalCounter)
+	if GlobalCounter > 5 {
+		stepResult := common.NewStepResult("Response after 5 iterations")
+		stepResult.KeepRunning = false
+		stepResult.RescheduleAfterSeconds = 0
+		GlobalCounter = 0
+		return stepResult
+
+	}
+	GlobalCounter++
+	stepResult := common.NewStepResult("Rescheduling the worker")
+	stepResult.KeepRunning = true
+	stepResult.RescheduleAfterSeconds = 2
+	return stepResult
+}
+```
 ```
 // Returns a list of strings
 func ListExample(data map[string]interface{}) []string {
@@ -128,6 +150,7 @@ Register your workers like this:
 import apis2 "github.com/unmeshed/unmeshed-go-sdk/sdk/apis/workers"
 
 workers := []*apis2.Worker{
+    apis2.NewWorker(RescheduleWorkerExample, "reschedule-worker)
     apis2.NewWorker(Sum, "sum"),
     apis2.NewWorker(FailExample, "fail-example"),
     apis2.NewWorker(ListExample, "list-example"),
