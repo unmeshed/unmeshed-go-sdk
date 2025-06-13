@@ -1,0 +1,49 @@
+name: Tag and Publish Go SDK
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.23.5'
+
+      - name: Extract Release Tag
+        id: get_tag
+        run: |
+          echo "tag_name=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
+          echo "Release tag: ${{ github.event.release.tag_name }}"
+
+      - name: Push tag to GitHub if missing
+        run: |
+          git fetch --tags
+          tag=${{ steps.get_tag.outputs.tag_name }}
+          if git rev-parse "$tag" >/dev/null 2>&1; then
+            echo "Tag $tag already exists locally."
+          else
+            echo "Creating and pushing tag $tag"
+            git tag "$tag"
+          fi
+          git push origin "$tag"
+
+      - name: Verify Go Module availability on GOPROXY
+        env:
+          GOPROXY: proxy.golang.org
+        run: |
+          go list -m github.com/unmeshed/unmeshed-go-sdk@${{ steps.get_tag.outputs.tag_name }}
