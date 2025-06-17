@@ -78,6 +78,8 @@ type UnmeshedClient struct {
 
 	lastPrintedPolling int64
 	lastPrintedRunning int64
+
+	stopOnce sync.Once
 }
 
 func NewUnmeshedClient(
@@ -425,7 +427,9 @@ func (uc *UnmeshedClient) RegisterWorkers(workers []*workers.Worker) error {
 
 func (uc *UnmeshedClient) Stop() {
 	uc.stopPolling.Store(true)
-	close(uc.done)
+	uc.stopOnce.Do(func() {
+		close(uc.done)
+	})
 }
 
 func (uc *UnmeshedClient) RunProcessSyncWithDefaultTimeout(processRequestData *common.ProcessRequestData) (*common.ProcessData, error) {
@@ -474,4 +478,8 @@ func (uc *UnmeshedClient) BulkReviewed(processIDs []int64, reason string) (*comm
 
 func (uc *UnmeshedClient) Rerun(processID int64, version int) (*common.ProcessData, error) {
 	return uc.processClient.Rerun(processID, version)
+}
+
+func (uc *UnmeshedClient) DoneChan() <-chan struct{} {
+	return uc.done
 }

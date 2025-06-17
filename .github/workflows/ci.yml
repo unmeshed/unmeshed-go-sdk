@@ -1,0 +1,32 @@
+name: CI - Run Go Tests
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.23.5'
+
+      - name: Set Go path and modules
+        run: |
+          go mod tidy
+          go mod vendor
+
+      - name: Run Tests
+        working-directory: ./tests
+        run: |
+          go test -v ./...
