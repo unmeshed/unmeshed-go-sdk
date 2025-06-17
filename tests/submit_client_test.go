@@ -12,7 +12,6 @@ import (
 	"github.com/unmeshed/unmeshed-go-sdk/sdk/configs"
 )
 
-// --- Basic construction/behavior tests ---
 func TestNewSubmitClient_Disabled(t *testing.T) {
 	os.Setenv("DISABLE_SUBMIT_CLIENT", "true")
 	defer os.Unsetenv("DISABLE_SUBMIT_CLIENT")
@@ -21,7 +20,6 @@ func TestNewSubmitClient_Disabled(t *testing.T) {
 	factory := apisHttp.NewHttpRequestFactory(config)
 	client := apisSubmit.NewSubmitClient(factory, config)
 	assert.NotNil(t, client)
-	assert.Equal(t, int32(0), client.GetActiveWorkers())
 }
 
 func TestNewSubmitClient_Enabled(t *testing.T) {
@@ -31,8 +29,7 @@ func TestNewSubmitClient_Enabled(t *testing.T) {
 	factory := apisHttp.NewHttpRequestFactory(config)
 	client := apisSubmit.NewSubmitClient(factory, config)
 	assert.NotNil(t, client)
-	assert.GreaterOrEqual(t, client.GetActiveWorkers(), int32(10))
-	client.Close()
+	client.Stop()
 }
 
 func TestSubmit_AddsToTrackerAndQueue(t *testing.T) {
@@ -46,6 +43,7 @@ func TestSubmit_AddsToTrackerAndQueue(t *testing.T) {
 	err := client.Submit(workResponse, stepPollState)
 	assert.NoError(t, err)
 	assert.Equal(t, 1, client.GetSubmitTrackerSize())
+	client.Stop()
 }
 
 func TestSubmit_DuplicateStepID(t *testing.T) {
@@ -62,6 +60,7 @@ func TestSubmit_DuplicateStepID(t *testing.T) {
 	stepPollState2 := common.NewStepPollState(1)
 	client.Submit(workResponse2, stepPollState2)
 	assert.Equal(t, 1, client.GetSubmitTrackerSize())
+	client.Stop()
 }
 
 func TestSubmit_StepPollStateCount(t *testing.T) {
@@ -75,6 +74,7 @@ func TestSubmit_StepPollStateCount(t *testing.T) {
 	err := client.Submit(workResponse, stepPollState)
 	assert.NoError(t, err)
 	assert.Equal(t, 1, client.GetSubmitTrackerSize())
+	client.Stop()
 }
 
 func TestSubmit_EmptyClientIDPanics(t *testing.T) {
@@ -104,26 +104,14 @@ func TestGetSubmitTrackerSize(t *testing.T) {
 	stepPollState := common.NewStepPollState(1)
 	client.Submit(workResponse, stepPollState)
 	assert.Equal(t, 1, client.GetSubmitTrackerSize())
-}
-
-func TestGetActiveWorkers_Disabled(t *testing.T) {
-	os.Setenv("DISABLE_SUBMIT_CLIENT", "true")
-	defer os.Unsetenv("DISABLE_SUBMIT_CLIENT")
-	config := configs.NewClientConfig()
-	config.SetClientID("test-client")
-	factory := apisHttp.NewHttpRequestFactory(config)
-	client := apisSubmit.NewSubmitClient(factory, config)
-	assert.Equal(t, int32(0), client.GetActiveWorkers())
+	client.Stop()
 }
 
 func TestClose_Idempotent(t *testing.T) {
-	os.Setenv("DISABLE_SUBMIT_CLIENT", "true")
-	defer os.Unsetenv("DISABLE_SUBMIT_CLIENT")
 	config := configs.NewClientConfig()
 	config.SetClientID("test-client")
 	factory := apisHttp.NewHttpRequestFactory(config)
 	client := apisSubmit.NewSubmitClient(factory, config)
-	client.Close()
-	// Should not panic on second call
-	client.Close()
+	client.Stop()
+	client.Stop()
 }

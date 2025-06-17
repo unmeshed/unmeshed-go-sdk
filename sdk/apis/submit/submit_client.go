@@ -25,106 +25,117 @@ const (
 )
 
 type SubmitClient struct {
-	HttpClient         *http.Client
-	HttpRequestFactory *apis.HttpRequestFactory
-	ClientConfig       *configs.ClientConfig
+	httpClient         *http.Client
+	httpRequestFactory *apis.HttpRequestFactory
+	clientConfig       *configs.ClientConfig
 	mainQueue          *common.Queue
 	retryQueue         *common.Queue
 	submitTracker      map[int64]*common.WorkResponseTracker
-	submitTrackerLock  sync.RWMutex
+	submitTrackerLock  sync.Mutex
+	stopPolling        atomic.Bool
 	workerWg           sync.WaitGroup
-	stopChan           chan struct{}
-	disabled           atomic.Bool
-	activeWorkers      atomic.Int32
-	closeOnce          sync.Once
+	cleanupWg          sync.WaitGroup
 }
 
 func NewSubmitClient(httpRequestFactory *apis.HttpRequestFactory, clientConfig *configs.ClientConfig) *SubmitClient {
-	// Check if submit client is disabled via environment variable
-	disabled := strings.ToLower(os.Getenv("DISABLE_SUBMIT_CLIENT")) == "true"
-
-	client := &SubmitClient{
-		HttpClient:         &http.Client{},
-		HttpRequestFactory: httpRequestFactory,
-		ClientConfig:       clientConfig,
-		mainQueue:          common.NewQueue(10000),
-		retryQueue:         common.NewQueue(10000),
-		submitTracker:      make(map[int64]*common.WorkResponseTracker),
-		submitTrackerLock:  sync.RWMutex{},
-		stopChan:           make(chan struct{}),
-		disabled:           atomic.Bool{},
-		activeWorkers:      atomic.Int32{},
-	}
-
-	client.disabled.Store(disabled)
-
-	// Validate client ID
 	if clientConfig.GetClientID() == "" {
 		log.Fatal("Cannot submit results without a clientId")
 	}
 
-	if !disabled {
-		workersCount := int(3)
-		if workersCount < 10 {
-			workersCount = 10
-		}
-
-		mainWorkers := (workersCount * 2) / 3
-		for i := 0; i < mainWorkers; i++ {
-			client.workerWg.Add(1)
-			client.activeWorkers.Add(1)
-			go client.processQueue(client.mainQueue)
-		}
-
-		// Start worker for retry queue (1/3 of threads)
-		retryWorkers := workersCount - mainWorkers
-		for i := 0; i < retryWorkers; i++ {
-			client.workerWg.Add(1)
-			client.activeWorkers.Add(1)
-			go client.processQueue(client.retryQueue)
-		}
-
-		go client.cleanupLingeringSubmitTrackers()
+	client := &SubmitClient{
+		httpClient:         &http.Client{},
+		httpRequestFactory: httpRequestFactory,
+		clientConfig:       clientConfig,
+		mainQueue:          common.NewQueue(100000),
+		retryQueue:         common.NewQueue(100000),
+		submitTracker:      make(map[int64]*common.WorkResponseTracker),
 	}
 
+	disabled := strings.ToLower(os.Getenv("DISABLE_SUBMIT_CLIENT")) == "true"
+	if !disabled {
+		for i := 0; i < 5; i++ {
+			client.workerWg.Add(1)
+			go client.processQueue(client.mainQueue, "main")
+			client.workerWg.Add(1)
+			go client.processQueue(client.retryQueue, "retry")
+		}
+		client.cleanupWg.Add(1)
+		go client.cleanupLingeringSubmitTrackers()
+	}
 	return client
 }
 
-func (c *SubmitClient) processQueue(queue *common.Queue) {
+func (c *SubmitClient) Stop() {
+	c.stopPolling.Store(true)
+	c.workerWg.Wait()
+	c.cleanupWg.Wait()
+}
+
+func (c *SubmitClient) cleanupLingeringSubmitTrackers() {
+	ticker := time.NewTicker(5 * time.Second)
 	defer func() {
-		c.workerWg.Done()
-		c.activeWorkers.Add(-1)
+		ticker.Stop()
+		c.cleanupWg.Done()
 	}()
+	for !c.stopPolling.Load() {
+		currentMillis := time.Now().UnixMilli()
+		c.submitTrackerLock.Lock()
+		for stepID, tracker := range c.submitTracker {
+			if currentMillis-tracker.QueuedTime > 10*60*1000 {
+				tracker.StepPollState.Release(1)
+				delete(c.submitTracker, stepID)
+			}
+		}
+		c.submitTrackerLock.Unlock()
+		time.Sleep(3 * time.Second)
+	}
+}
 
-	backoff := INITIAL_BACKOFF
-	for {
-		select {
-		case <-c.stopChan:
-			return
-		default:
-			var batch []*common.WorkResponse
-			batchSize := c.ClientConfig.GetResponseSubmitBatchSize()
-
-			for i := 0; i < batchSize; i++ {
-				if !queue.Empty() {
-					if workResponse, fetched := queue.Get(); fetched {
-						batch = append(batch, workResponse)
-					}
+func (c *SubmitClient) processQueue(queue *common.Queue, queueType string) {
+	defer c.workerWg.Done()
+	timeout := int(c.clientConfig.GetSubmitClientPollTimeoutSeconds())
+	if timeout <= 0 {
+		timeout = 30
+	}
+	for !c.stopPolling.Load() {
+		var batch []*common.WorkResponse
+		itemReceived := false
+		start := time.Now()
+		for !itemReceived && !c.stopPolling.Load() {
+			if !queue.Empty() {
+				if workResponse, fetched := queue.Get(); fetched {
+					batch = append(batch, workResponse)
+					itemReceived = true
+					break
 				}
 			}
-
-			if len(batch) == 0 {
-				time.Sleep(100 * time.Millisecond)
-				continue
+			if time.Since(start) > time.Duration(timeout)*time.Second {
+				if !c.stopPolling.Load() {
+					log.Printf("No item received from queue %s in %d seconds, retrying...", queueType, timeout)
+				}
+				break // Only log once per timeout
 			}
-
-			if err := c.processBatch(batch); err != nil {
-				backoff = min(backoff*2, MAX_BACKOFF)
-				time.Sleep(backoff)
-				continue
+			time.Sleep(100 * time.Millisecond)
+		}
+		// Fill up the batch
+		for i := 1; i < c.clientConfig.GetResponseSubmitBatchSize(); i++ {
+			if !queue.Empty() {
+				if workResponse, fetched := queue.Get(); fetched {
+					batch = append(batch, workResponse)
+				}
+			} else {
+				break
 			}
-
-			backoff = INITIAL_BACKOFF
+		}
+		if len(batch) == 0 {
+			continue
+		}
+		if err := c.processBatch(batch); err != nil {
+			log.Printf("Bulk request failed for batch. Re-queuing all items. Error: %v", err)
+			time.Sleep(3 * time.Second)
+			for _, workResponse := range batch {
+				c.handleAllRequestFailure(workResponse, err.Error())
+			}
 		}
 	}
 }
@@ -132,160 +143,116 @@ func (c *SubmitClient) processQueue(queue *common.Queue) {
 func (c *SubmitClient) processBatch(batch []*common.WorkResponse) error {
 	bodyBytes, err := json.Marshal(batch)
 	if err != nil {
-		log.Printf("Failed to marshal request body: %v", err)
 		return err
 	}
-
 	params := map[string]interface{}{}
-	resp, err := c.HttpRequestFactory.CreatePostRequest(CLIENTS_RESULTS_URL, params, bodyBytes)
+	resp, err := c.httpRequestFactory.CreatePostRequest(CLIENTS_RESULTS_URL, params, bodyBytes)
 	if err != nil {
-		log.Printf("Bulk request failed for batch. Error: %v", err)
-		c.handleBatchFailure(batch, err.Error())
 		return err
 	}
 	defer resp.Body.Close()
-
 	if resp.StatusCode != http.StatusOK {
-		errorBody, err := io.ReadAll(resp.Body)
-		if err != nil {
-			log.Printf("Bulk request failed with status %d, Failed to read error response: %v", resp.StatusCode, err)
-			c.handleBatchFailure(batch, fmt.Sprintf("Response status %d", resp.StatusCode))
-			return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
-		}
-		if len(errorBody) > 0 {
-			log.Printf("Bulk request failed with status %d. Error response: %s", resp.StatusCode, string(errorBody))
-			c.handleBatchFailure(batch, fmt.Sprintf("Response status %d: %s", resp.StatusCode, string(errorBody)))
-		} else {
-			log.Printf("Bulk request failed with status %d", resp.StatusCode)
-			c.handleBatchFailure(batch, fmt.Sprintf("Response status %d", resp.StatusCode))
-		}
-		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+		errorBody, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("Response status %d: %s", resp.StatusCode, string(errorBody))
 	}
-
 	var responseMap map[string]*common.ClientSubmitResult
 	if err := json.NewDecoder(resp.Body).Decode(&responseMap); err != nil {
-		log.Printf("Failed to decode response body: %v", err)
 		return err
 	}
-
 	c.processBatchResults(batch, responseMap)
 	return nil
 }
 
 func (c *SubmitClient) processBatchResults(batch []*common.WorkResponse, responseMap map[string]*common.ClientSubmitResult) {
-	c.submitTrackerLock.Lock()
-	defer c.submitTrackerLock.Unlock()
-
 	for _, workResponse := range batch {
 		stepId := fmt.Sprintf("%d", workResponse.GetStepID())
+		c.submitTrackerLock.Lock()
+		workResponseTracker := c.submitTracker[workResponse.GetStepID()]
+		c.submitTrackerLock.Unlock()
 		result, exists := responseMap[stepId]
-		tracker := c.submitTracker[workResponse.GetStepID()]
-
-		if !exists || len(result.GetErrorMessage()) != 0 {
-			if tracker != nil && tracker.RetryCount < MAX_RETRIES {
-				tracker.RetryCount++
-				c.retryQueue.Put(workResponse)
-			} else {
-				c.handlePermanentFailure(workResponse, result, tracker)
+		if !exists || (result != nil && len(result.GetErrorMessage()) != 0) {
+			errorMessage := "No result"
+			if result != nil && result.GetErrorMessage() != "" {
+				errorMessage = result.GetErrorMessage()
 			}
+			log.Printf("Error for WorkResponse %d %d: %s", workResponse.GetProcessID(), workResponse.GetStepID(), errorMessage)
+			c.enqueueForRetry(workResponse, result, workResponseTracker)
 		} else {
-			c.handleSuccess(workResponse, tracker)
-		}
-	}
-}
-
-func (c *SubmitClient) handleBatchFailure(batch []*common.WorkResponse, message string) {
-	c.submitTrackerLock.Lock()
-	defer c.submitTrackerLock.Unlock()
-
-	for _, workResponse := range batch {
-		if tracker, exists := c.submitTracker[workResponse.GetStepID()]; exists {
-			if tracker.RetryCount < MAX_RETRIES {
-				tracker.RetryCount++
-				c.retryQueue.Put(workResponse)
-			} else {
-				c.handlePermanentFailure(workResponse, common.NewClientSubmitResult(workResponse.ProcessID, workResponse.StepID, 400, message), tracker)
-			}
-		}
-	}
-}
-
-func (c *SubmitClient) handleSuccess(workResponse *common.WorkResponse, tracker *common.WorkResponseTracker) {
-	delete(c.submitTracker, workResponse.GetStepID())
-	if tracker != nil {
-		tracker.StepPollState.Release(1)
-	}
-}
-
-func (c *SubmitClient) handlePermanentFailure(workResponse *common.WorkResponse, result *common.ClientSubmitResult, tracker *common.WorkResponseTracker) {
-	log.Printf("[ERROR:] Permanent error for WorkResponse %s:%s", workResponse.GetProcessID(), result.GetErrorMessage())
-	delete(c.submitTracker, workResponse.GetStepID())
-	if tracker != nil {
-		tracker.StepPollState.Release(1)
-	}
-}
-
-func (c *SubmitClient) cleanupLingeringSubmitTrackers() {
-	ticker := time.NewTicker(5 * time.Second)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-c.stopChan:
-			return
-		case <-ticker.C:
-			currentMillis := time.Now().UnixMilli()
+			log.Printf("Result from stepId %d %d submitted!", workResponse.GetProcessID(), workResponse.GetStepID())
 			c.submitTrackerLock.Lock()
-			for stepID, tracker := range c.submitTracker {
-				if currentMillis-tracker.QueuedTime > 10*60*1000 {
-					tracker.StepPollState.Release(1)
-					delete(c.submitTracker, stepID)
-				}
-			}
+			delete(c.submitTracker, workResponse.GetStepID())
 			c.submitTrackerLock.Unlock()
+			if workResponseTracker != nil {
+				workResponseTracker.StepPollState.Release(1)
+			}
 		}
 	}
+}
+
+func (c *SubmitClient) handleAllRequestFailure(workResponse *common.WorkResponse, message string) {
+	c.submitTrackerLock.Lock()
+	workResponseTracker := c.submitTracker[workResponse.GetStepID()]
+	c.submitTrackerLock.Unlock()
+	if workResponseTracker != nil {
+		c.enqueueForRetry(workResponse, common.NewClientSubmitResult(workResponse.ProcessID, workResponse.StepID, 400, message), workResponseTracker)
+	}
+}
+
+func (c *SubmitClient) enqueueForRetry(workResponse *common.WorkResponse, result *common.ClientSubmitResult, workResponseTracker *common.WorkResponseTracker) {
+	if workResponseTracker == nil {
+		return
+	}
+	if c.isPermanentError(result) {
+		log.Printf("Permanent error for WorkResponse %d: %s", workResponse.GetProcessID(), result.GetErrorMessage())
+		c.submitTrackerLock.Lock()
+		delete(c.submitTracker, workResponse.GetStepID())
+		c.submitTrackerLock.Unlock()
+		workResponseTracker.StepPollState.Release(1)
+		return
+	}
+	count := workResponseTracker.RetryCount + 1
+	if count > int(c.clientConfig.GetMaxSubmitAttempts()) {
+		log.Printf("Max retry attempts reached for WorkResponse %d - %d", workResponse.GetStepID(), workResponse.GetProcessID())
+		c.submitTrackerLock.Lock()
+		delete(c.submitTracker, workResponse.GetStepID())
+		c.submitTrackerLock.Unlock()
+		workResponseTracker.StepPollState.Release(1)
+		return
+	}
+	workResponseTracker.RetryCount = count
+	c.retryQueue.Put(workResponse)
+	log.Printf("Re-queued WorkResponse %d for retry attempt %d", workResponse.GetProcessID(), count)
+}
+
+func (c *SubmitClient) isPermanentError(result *common.ClientSubmitResult) bool {
+	if result == nil || result.GetErrorMessage() == "" {
+		return false
+	}
+	for _, keyword := range c.clientConfig.PermanentErrorKeywords() {
+		if strings.Contains(result.GetErrorMessage(), keyword) {
+			return true
+		}
+	}
+	return false
 }
 
 func (c *SubmitClient) Submit(workResponse *common.WorkResponse, stepPollState *common.StepPollState) error {
-	if c.disabled.Load() {
-		stepPollState.Release(stepPollState.GetTotalCount())
-		return nil
-	}
-
+	log.Printf("Submitting results to queue: %+v", workResponse)
 	c.submitTrackerLock.Lock()
-	defer c.submitTrackerLock.Unlock()
-
+	epochMillis := time.Now().UnixMilli()
 	tracker := common.NewWorkResponseTracker(workResponse)
-	tracker.QueuedTime = time.Now().UnixMilli()
+	tracker.QueuedTime = epochMillis
 	tracker.StepPollState = stepPollState
 	tracker.RetryCount = 0
-
 	c.submitTracker[workResponse.GetStepID()] = tracker
+	c.submitTrackerLock.Unlock()
 	c.mainQueue.Put(workResponse)
+	log.Printf("Result[%v] from stepId %d queued!", workResponse.GetStatus(), workResponse.GetStepID())
 	return nil
 }
 
 func (c *SubmitClient) GetSubmitTrackerSize() int {
-	c.submitTrackerLock.RLock()
-	defer c.submitTrackerLock.RUnlock()
+	c.submitTrackerLock.Lock()
+	defer c.submitTrackerLock.Unlock()
 	return len(c.submitTracker)
-}
-
-func (c *SubmitClient) GetActiveWorkers() int32 {
-	return c.activeWorkers.Load()
-}
-
-func (c *SubmitClient) Close() {
-	c.closeOnce.Do(func() {
-		close(c.stopChan)
-		c.workerWg.Wait()
-	})
-}
-
-func min(a, b time.Duration) time.Duration {
-	if a < b {
-		return a
-	}
-	return b
 }

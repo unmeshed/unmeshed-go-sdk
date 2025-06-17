@@ -275,6 +275,36 @@ func (client *UnmeshedClient) startAsyncTaskProcessing() {
 
 	disableLogRunningWorkerDetails := os.Getenv("DISABLE_RUNNING_WORKER_LOGS") == "true"
 
+	// Determine worker pool size
+	workerCount := int(client.ClientConfig.GetMaxWorkers())
+	if workerCount < 10 {
+		workerCount = 10
+	}
+	workQueue := make(chan common.WorkRequest, workerCount*2)
+
+	// Start worker pool
+	var workerWg sync.WaitGroup
+	for i := 0; i < workerCount; i++ {
+		workerWg.Add(1)
+		go func() {
+			defer workerWg.Done()
+			for workRequest := range workQueue {
+				var foundWorker *workersApi.Worker
+				for i := range client.Workers {
+					if client.Workers[i].GetName() == workRequest.GetStepName() {
+						foundWorker = &client.Workers[i]
+						break
+					}
+				}
+				if foundWorker != nil {
+					client.runStep(foundWorker, &workRequest)
+				} else {
+					log.Printf("No worker found for step '%s'\n", workRequest.GetStepName())
+				}
+			}
+		}()
+	}
+
 	go func() {
 		var (
 			lastLogTime    = time.Now()
@@ -299,18 +329,7 @@ func (client *UnmeshedClient) startAsyncTaskProcessing() {
 
 			if len(workRequests) > 0 {
 				for _, workRequest := range workRequests {
-					var foundWorker *workersApi.Worker
-					for i := range client.Workers {
-						if client.Workers[i].GetName() == workRequest.GetStepName() {
-							foundWorker = &client.Workers[i]
-							break
-						}
-					}
-					if foundWorker != nil {
-						go client.runStep(foundWorker, &workRequest)
-					} else {
-						log.Printf("No worker found for step '%s'\n", workRequest.GetStepName())
-					}
+					workQueue <- workRequest
 				}
 				log.Printf("All tasks scheduled. Continuing the polling")
 			}
@@ -322,7 +341,13 @@ func (client *UnmeshedClient) startAsyncTaskProcessing() {
 
 			time.Sleep(pollInterval)
 		}
-		log.Println("Polling loop exited gracefully.")
+		close(workQueue)
+	}()
+
+	// Wait for all workers to finish before returning (when stopPolling is set)
+	go func() {
+		workerWg.Wait()
+		log.Println("Worker pool exited gracefully.")
 	}()
 }
 
