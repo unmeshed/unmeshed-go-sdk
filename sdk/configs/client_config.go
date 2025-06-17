@@ -33,6 +33,7 @@ func NewClientConfig() *ClientConfig {
 	defaultStepSubmissionAttempts := int64(3)
 	defaultMaxWorkers := int64(20)
 	responseSubmitBatchSize := int(500)
+	maxSubmitAttempts := int64(50)
 
 	return &ClientConfig{
 		Namespace:                      defaultNamespace,
@@ -50,6 +51,7 @@ func NewClientConfig() *ClientConfig {
 			"Invalid request, step is not in RUNNING state",
 			"please poll the latest and update",
 		},
+		MaxSubmitAttempts: maxSubmitAttempts,
 	}
 }
 
