@@ -78,7 +78,7 @@ Example:
     cfg.SetPort(8080)
     cfg.SetBaseURL("http://localhost")      // set your URL
     cfg.SetWorkRequestBatchSize(50)
-    cfg.SetInitialDelayMillis(50)
+    cfg.SetDelayMillis(100) //Delay between poll
     cfg.SetStepTimeoutMillis(36000000)
     cfg.SetMaxWorkers(20)
 ```
@@ -246,7 +246,7 @@ import (
         cfg.SetPort(8080)
         cfg.SetBaseURL("http://localhost")
         cfg.SetWorkRequestBatchSize(50)
-        cfg.SetInitialDelayMillis(50)
+        cfg.SetDelayMillis(100) //Delay between poll
         cfg.SetStepTimeoutMillis(36000000)
         cfg.SetMaxWorkers(20)
 
