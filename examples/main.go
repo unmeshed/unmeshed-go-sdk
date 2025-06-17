@@ -163,14 +163,18 @@ func main() {
 	}
 
 	clientConfig := configs.NewClientConfig()
-	clientConfig.SetClientID("<< Client Id >>")
-	clientConfig.SetAuthToken("<< Auth Token >>")
+	clientConfig.SetClientID("123")
+	clientConfig.SetAuthToken("123")
 	clientConfig.SetPort(8080)
 	clientConfig.SetWorkRequestBatchSize(200)
 	clientConfig.SetBaseURL("http://localhost")
 	clientConfig.SetStepTimeoutMillis(36000000)
 	clientConfig.SetMaxWorkers(20)
-	unmeshedClient := apis.NewUnmeshedClient(clientConfig)
+	unmeshedClient, err := apis.NewUnmeshedClient(clientConfig)
+	if err != nil {
+		fmt.Printf("Error creating client: %v\n", err)
+		return
+	}
 	unmeshedClient.RegisterWorkers(workerList)
 
 	worker := apis2.NewWorker(ManuallyRegisteredWorker, "manually-registered-worker")
