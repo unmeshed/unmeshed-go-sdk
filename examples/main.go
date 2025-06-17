@@ -163,7 +163,7 @@ func main() {
 	}
 
 	clientConfig := configs.NewClientConfig()
-	clientConfig.SetClientID("<< Client Id >>")
+	clientConfig.SetClientID("<< sasassa Id >>")
 	clientConfig.SetAuthToken("<< Auth Token >>")
 	clientConfig.SetDelayMillis(40)
 	clientConfig.SetPort(8080)
