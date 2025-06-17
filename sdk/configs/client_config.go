@@ -9,7 +9,7 @@ type ClientConfig struct {
 	ConnectionTimeoutSecs          int64
 	SubmitClientPollTimeoutSeconds float64
 	StepTimeoutMillis              int64
-	InitialDelayMillis             int64
+	DelayMillis                    int64
 	WorkRequestBatchSize           int
 	StepSubmissionAttempts         int64
 	ClientID                       string
@@ -28,7 +28,7 @@ func NewClientConfig() *ClientConfig {
 	defaultConnectionTimeoutSecs := int64(60)
 	defaultSubmitClientPollTimeoutSeconds := float64(30)
 	defaultStepTimeoutMillis := int64(5000)
-	defaultInitialDelayMillis := int64(1000)
+	defaultDelayMillis := int64(100)
 	defaultWorkRequestBatchSize := int(100)
 	defaultStepSubmissionAttempts := int64(3)
 	defaultMaxWorkers := int64(20)
@@ -41,7 +41,7 @@ func NewClientConfig() *ClientConfig {
 		ConnectionTimeoutSecs:          defaultConnectionTimeoutSecs,
 		SubmitClientPollTimeoutSeconds: defaultSubmitClientPollTimeoutSeconds,
 		StepTimeoutMillis:              defaultStepTimeoutMillis,
-		InitialDelayMillis:             defaultInitialDelayMillis,
+		DelayMillis:                    defaultDelayMillis,
 		WorkRequestBatchSize:           defaultWorkRequestBatchSize,
 		StepSubmissionAttempts:         defaultStepSubmissionAttempts,
 		MaxWorkers:                     defaultMaxWorkers,
@@ -69,7 +69,7 @@ func (c *ClientConfig) GetSubmitClientPollTimeoutSeconds() float64 {
 	return c.SubmitClientPollTimeoutSeconds
 }
 func (c *ClientConfig) GetStepTimeoutMillis() int64                { return c.StepTimeoutMillis }
-func (c *ClientConfig) GetInitialDelayMillis() int64               { return c.InitialDelayMillis }
+func (c *ClientConfig) GetDelayMillis() int64                      { return c.DelayMillis }
 func (c *ClientConfig) GetWorkRequestBatchSize() int               { return c.WorkRequestBatchSize }
 func (c *ClientConfig) GetStepSubmissionAttempts() int64           { return c.StepSubmissionAttempts }
 func (c *ClientConfig) GetClientID() string                        { return c.ClientID }
@@ -121,11 +121,11 @@ func (c *ClientConfig) SetStepTimeoutMillis(stepTimeoutMillis int64) {
 	c.StepTimeoutMillis = stepTimeoutMillis
 }
 
-func (c *ClientConfig) SetInitialDelayMillis(initialDelayMillis int64) {
-	if initialDelayMillis < 0 {
-		panic("Initial delay cannot be negative")
+func (c *ClientConfig) SetDelayMillis(delayMillis int64) {
+	if delayMillis < 0 {
+		panic("Delay cannot be negative")
 	}
-	c.InitialDelayMillis = initialDelayMillis
+	c.DelayMillis = delayMillis
 }
 
 func (c *ClientConfig) SetWorkRequestBatchSize(workRequestBatchSize int) {
