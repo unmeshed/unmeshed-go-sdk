@@ -84,13 +84,13 @@ type UnmeshedClient struct {
 
 func NewUnmeshedClient(
 	clientConfig *configs.ClientConfig,
-) *UnmeshedClient {
+) (*UnmeshedClient, error) {
 	// Setup logging first
 	setupLogging()
 
 	// Validate client ID and token
 	if clientConfig.GetClientID() == "" || !clientConfig.HasToken() {
-		log.Fatal("Cannot initialize without a valid clientId and token")
+		return nil, fmt.Errorf("cannot initialize without a valid clientId and token")
 	}
 
 	httpClientFactory := apis.NewHttpClientFactory(clientConfig)
@@ -128,7 +128,7 @@ func NewUnmeshedClient(
 		lastPrintedRunning:       0,
 	}
 
-	return unmeshedClient
+	return unmeshedClient, nil
 }
 
 func (uc *UnmeshedClient) getWorkers() []workersApi.Worker {
