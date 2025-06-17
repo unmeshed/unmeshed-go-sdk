@@ -165,6 +165,7 @@ func main() {
 	clientConfig := configs.NewClientConfig()
 	clientConfig.SetClientID("<< Client Id >>")
 	clientConfig.SetAuthToken("<< Auth Token >>")
+	clientConfig.SetDelayMillis(40)
 	clientConfig.SetPort(8080)
 	clientConfig.SetWorkRequestBatchSize(200)
 	clientConfig.SetBaseURL("http://localhost")

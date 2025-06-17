@@ -36,6 +36,7 @@ type SubmitClient struct {
 	stopChan           chan struct{}
 	disabled           atomic.Bool
 	activeWorkers      atomic.Int32
+	closeOnce          sync.Once
 }
 
 func NewSubmitClient(httpRequestFactory *apis.HttpRequestFactory, clientConfig *configs.ClientConfig) *SubmitClient {
@@ -276,8 +277,10 @@ func (c *SubmitClient) GetActiveWorkers() int32 {
 }
 
 func (c *SubmitClient) Close() {
-	close(c.stopChan)
-	c.workerWg.Wait()
+	c.closeOnce.Do(func() {
+		close(c.stopChan)
+		c.workerWg.Wait()
+	})
 }
 
 func min(a, b time.Duration) time.Duration {
