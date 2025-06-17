@@ -53,7 +53,11 @@ func main() {
     cfg.SetPort(8080)
     cfg.SetBaseURL("http://localhost")      // set your URL
 
-    client := apis.NewUnmeshedClient(cfg)
+    unmeshedClient, err := apis.NewUnmeshedClient(clientConfig)
+	if err != nil {
+		fmt.Printf("Error creating client: %v\n", err)
+		return
+	}
     client.RegisterWorker(worker)
     client.Start()
 }
@@ -251,8 +255,11 @@ import (
         cfg.SetMaxWorkers(20)
 
         // Create and configure the client
-        client := apis.NewUnmeshedClient(cfg)
-
+        unmeshedClient, err := apis.NewUnmeshedClient(clientConfig)
+	    if err != nil {
+		   fmt.Printf("Error creating client: %v\n", err)
+		   return
+	    }
         // Register workers
         workers := []*apis2.Worker{
             apis2.NewWorker(Sum, "sum"),
