@@ -1,38 +1,70 @@
 package common
 
 type Queue struct {
-	items []*WorkResponse
-	size  int
+	channel chan *WorkResponse
+	size    int
 }
 
 func NewQueue(size int) *Queue {
 	return &Queue{
-		items: []*WorkResponse{},
-		size:  size,
+		channel: make(chan *WorkResponse, size),
+		size:    size,
 	}
 }
 
 func (q *Queue) Put(value *WorkResponse) bool {
-
-	if len(q.items) >= q.size {
+	select {
+	case q.channel <- value:
+		return true
+	default:
 		return false
 	}
-
-	q.items = append(q.items, value)
-	return true
 }
 
 func (q *Queue) Get() (*WorkResponse, bool) {
-	if len(q.items) == 0 {
+	select {
+	case item := <-q.channel:
+		return item, true
+	default:
 		var zeroValue *WorkResponse
 		return zeroValue, false
 	}
+}
 
-	item := q.items[0]
-	q.items = q.items[1:]
-	return item, true
+// GetBatch retrieves up to max elements from the queue
+func (q *Queue) GetBatch(max int) []*WorkResponse {
+	if max <= 0 {
+		return []*WorkResponse{}
+	}
+
+	var results []*WorkResponse
+	for i := 0; i < max; i++ {
+		select {
+		case item := <-q.channel:
+			results = append(results, item)
+		default:
+			// No more items available
+			return results
+		}
+	}
+	return results
 }
 
 func (q *Queue) Empty() bool {
-	return len(q.items) == 0
+	return len(q.channel) == 0
+}
+
+// Close closes the channel, preventing further sends
+func (q *Queue) Close() {
+	close(q.channel)
+}
+
+// Size returns the current number of items in the queue
+func (q *Queue) Size() int {
+	return len(q.channel)
+}
+
+// Capacity returns the maximum capacity of the queue
+func (q *Queue) Capacity() int {
+	return cap(q.channel)
 }

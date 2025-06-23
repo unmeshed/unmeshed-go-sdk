@@ -112,11 +112,6 @@ func FailExample(data map[string]interface{}) error {
 }
 ```
 
-🛑 Reduce Log Noise for Running Workers
-```
-    os.Setenv("DISABLE_RUNNING_WORKER_LOGS", "true")
-```
-
 // Getting currently executed workRequest by client
 ```
     workRequest :=unmeshedClient.GetCurrentWorkRequest()
