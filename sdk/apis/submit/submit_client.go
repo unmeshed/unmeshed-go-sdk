@@ -53,12 +53,10 @@ func NewSubmitClient(httpRequestFactory *apis.HttpRequestFactory, clientConfig *
 
 	disabled := strings.ToLower(os.Getenv("DISABLE_SUBMIT_CLIENT")) == "true"
 	if !disabled {
-		for i := 0; i < 5; i++ {
-			client.workerWg.Add(1)
-			go client.processQueue(client.mainQueue, "main")
-			client.workerWg.Add(1)
-			go client.processQueue(client.retryQueue, "retry")
-		}
+		client.workerWg.Add(1)
+		go client.processQueue(client.mainQueue, "main")
+		client.workerWg.Add(1)
+		go client.processQueue(client.retryQueue, "retry")
 		client.cleanupWg.Add(1)
 		go client.cleanupLingeringSubmitTrackers()
 	}
