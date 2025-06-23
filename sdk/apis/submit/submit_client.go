@@ -113,11 +113,11 @@ func (c *SubmitClient) processQueue(queue *common.Queue, queueType string) {
 				if !c.stopPolling.Load() {
 					log.Printf("No item received from queue %s in %d seconds, retrying...", queueType, timeout)
 				}
-				break // Only log once per timeout
+				break
 			}
 			time.Sleep(100 * time.Millisecond)
 		}
-		// Fill up the batch
+
 		for i := 1; i < c.clientConfig.GetResponseSubmitBatchSize(); i++ {
 			if !queue.Empty() {
 				if workResponse, fetched := queue.Get(); fetched {
@@ -153,7 +153,7 @@ func (c *SubmitClient) processBatch(batch []*common.WorkResponse) error {
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		errorBody, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("Response status %d: %s", resp.StatusCode, string(errorBody))
+		return fmt.Errorf("response status %d: %s", resp.StatusCode, string(errorBody))
 	}
 	var responseMap map[string]*common.ClientSubmitResult
 	if err := json.NewDecoder(resp.Body).Decode(&responseMap); err != nil {
