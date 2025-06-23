@@ -97,37 +97,16 @@ func (c *SubmitClient) processQueue(queue *common.Queue, queueType string) {
 	}
 	for !c.stopPolling.Load() {
 		var batch []*common.WorkResponse
-		itemReceived := false
-		start := time.Now()
-		for !itemReceived && !c.stopPolling.Load() {
-			if !queue.Empty() {
-				if workResponse, fetched := queue.Get(); fetched {
-					batch = append(batch, workResponse)
-					itemReceived = true
-					break
-				}
-			}
-			if time.Since(start) > time.Duration(timeout)*time.Second {
-				if !c.stopPolling.Load() {
-					log.Printf("No item received from queue %s in %d seconds, retrying...", queueType, timeout)
-				}
-				break
-			}
-			time.Sleep(100 * time.Millisecond)
-		}
 
-		for i := 1; i < c.clientConfig.GetResponseSubmitBatchSize(); i++ {
-			if !queue.Empty() {
-				if workResponse, fetched := queue.Get(); fetched {
-					batch = append(batch, workResponse)
-				}
-			} else {
-				break
-			}
-		}
+		// Collect items up to batch size
+		batch = queue.GetBatch(c.clientConfig.GetResponseSubmitBatchSize())
+
+		// If no items collected, wait a bit and continue
 		if len(batch) == 0 {
+			time.Sleep(time.Duration(c.clientConfig.GetSubmitClientSleepIntervalMillis()) * time.Millisecond)
 			continue
 		}
+
 		if err := c.processBatch(batch); err != nil {
 			log.Printf("Bulk request failed for batch. Re-queuing all items. Error: %v", err)
 			time.Sleep(3 * time.Second)
