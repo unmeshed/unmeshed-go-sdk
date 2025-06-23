@@ -83,6 +83,7 @@ Example:
     cfg.SetBaseURL("http://localhost")      // set your URL
     cfg.SetWorkRequestBatchSize(50)
     cfg.SetDelayMillis(100) //Delay between poll
+    cfg.SetSubmitClientSleepIntervalMillis(100) // Delay between submit attempts
     cfg.SetStepTimeoutMillis(36000000)
     cfg.SetMaxWorkers(20)
 ```
@@ -253,6 +254,7 @@ import (
         cfg.SetWorkRequestBatchSize(50)
         cfg.SetDelayMillis(100) //Delay between poll
         cfg.SetStepTimeoutMillis(36000000)
+        cfg.SetSubmitClientSleepIntervalMillis(100)
         cfg.SetMaxWorkers(20)
 
         // Create and configure the client
