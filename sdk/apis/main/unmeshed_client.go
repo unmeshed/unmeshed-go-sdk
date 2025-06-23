@@ -179,7 +179,7 @@ func formattedWorkerID(namespace string, name string) string {
 	return fmt.Sprintf("%s:-#-:%s", namespace, name)
 }
 
-func (uc *UnmeshedClient) pollForWork(disableLogRunningWorkerDetails bool) ([]common.WorkRequest, error) {
+func (uc *UnmeshedClient) pollForWork() ([]common.WorkRequest, error) {
 
 	workers := uc.registrationClient.GetWorkers()
 	workerTasks := []common.StepSize{}
@@ -241,17 +241,13 @@ func (uc *UnmeshedClient) pollForWork(disableLogRunningWorkerDetails bool) ([]co
 			available := pollState.MaxAvailable()
 			total := pollState.GetTotalCount()
 			requested := workerRequestCount[workerId]
-			if !disableLogRunningWorkerDetails {
-				logEntries = append(logEntries,
-					fmt.Sprintf("%s:%s = Available[%d] / [%d] / [%d]", s.GetNamespace(), s.GetName(), available, requested, total))
-			}
+			logEntries = append(logEntries,
+				fmt.Sprintf("%s:%s = Available[%d] / [%d] / [%d]", s.GetNamespace(), s.GetName(), available, requested, total))
 		}
 		logStr := strings.Join(logEntries, ", ")
 		executingCount := uc.executingCount.Load()
 		submitTrackerSize := int32(uc.submitClient.GetSubmitTrackerSize())
-		if !disableLogRunningWorkerDetails {
-			log.Printf("Running : %d st: %d t: %d - permits %s", executingCount, submitTrackerSize, executingCount+submitTrackerSize, logStr)
-		}
+		log.Printf("Running : %d st: %d t: %d - permits %s", executingCount, submitTrackerSize, executingCount+submitTrackerSize, logStr)
 		uc.lastPrintedRunning = now
 	}
 
@@ -315,8 +311,6 @@ func (client *UnmeshedClient) startAsyncTaskProcessing() {
 	const minBackoff = 100 * time.Millisecond
 	const maxBackoff = 20 * time.Second
 
-	disableLogRunningWorkerDetails := os.Getenv("DISABLE_RUNNING_WORKER_LOGS") == "true"
-
 	// Determine worker pool size
 	workerCount := int(client.ClientConfig.GetMaxWorkers())
 	if workerCount < 10 {
@@ -354,7 +348,7 @@ func (client *UnmeshedClient) startAsyncTaskProcessing() {
 		)
 		for !client.stopPolling.Load() {
 			pollInterval := time.Duration(client.ClientConfig.GetDelayMillis()) * time.Millisecond
-			workRequests, err := client.pollForWork(disableLogRunningWorkerDetails)
+			workRequests, err := client.pollForWork()
 
 			if err != nil {
 				backoff := minBackoff << (pollRetryCount - 1)
