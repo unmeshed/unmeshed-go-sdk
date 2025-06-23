@@ -159,7 +159,6 @@ func PrintCurrentWorkRequest(data map[string]interface{}) string {
 }
 
 func main() {
-	os.Setenv("DISABLE_RUNNING_WORKER_LOGS", "true")
 	workerList := []*apis2.Worker{
 		apis2.NewWorker(RescheduleExample, "reschedule-example"),
 		apis2.NewWorker(DelayedResponse, "delayed-response"),
