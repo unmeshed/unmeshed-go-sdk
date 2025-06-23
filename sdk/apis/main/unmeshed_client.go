@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -22,6 +23,45 @@ import (
 	"github.com/unmeshed/unmeshed-go-sdk/sdk/common"
 	"github.com/unmeshed/unmeshed-go-sdk/sdk/configs"
 )
+
+var threadLocalWorkRequestKey = struct{}{}
+
+var workRequestPool = sync.Pool{
+	New: func() interface{} {
+		return new(common.WorkRequest)
+	},
+}
+
+var goroutineWorkRequestMap sync.Map
+
+func getGID() uint64 {
+	b := make([]byte, 64)
+	n := runtime.Stack(b, false)
+	b = b[:n]
+	var id uint64
+	for i := 10; i < len(b); i++ {
+		if b[i] < '0' || b[i] > '9' {
+			break
+		}
+		id = id*10 + uint64(b[i]-'0')
+	}
+	return id
+}
+
+func (uc *UnmeshedClient) SetCurrentWorkRequest(workRequest *common.WorkRequest) {
+	gid := getGID()
+	goroutineWorkRequestMap.Store(gid, workRequest)
+}
+
+func (uc *UnmeshedClient) GetCurrentWorkRequest() *common.WorkRequest {
+	gid := getGID()
+	if v, ok := goroutineWorkRequestMap.Load(gid); ok {
+		if wr, ok := v.(*common.WorkRequest); ok {
+			return wr
+		}
+	}
+	return nil
+}
 
 func setupLogging() {
 	enableFileLogging := os.Getenv("ENABLE_FILE_LOGGING") == "true"
@@ -219,6 +259,8 @@ func (uc *UnmeshedClient) pollForWork(disableLogRunningWorkerDetails bool) ([]co
 }
 
 func (uc *UnmeshedClient) runStep(worker *workersApi.Worker, workRequest *common.WorkRequest) {
+	uc.SetCurrentWorkRequest(workRequest)
+
 	result, err := uc.workerRunner.RunWorker(worker, workRequest)
 
 	var stepResult *common.StepResult

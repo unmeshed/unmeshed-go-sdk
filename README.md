@@ -117,6 +117,12 @@ func FailExample(data map[string]interface{}) error {
     os.Setenv("DISABLE_RUNNING_WORKER_LOGS", "true")
 ```
 
+// Getting currently executed workRequest by client
+```
+    workRequest :=unmeshedClient.GetCurrentWorkRequest()
+	fmt.Println(workRequest)
+
+```
 Display/Hide Large values as part of output during process search
 
 Use flag `hideLargeValues` as part of `GetProcessData(processId, includeSteps, hideLargeValues)` to include exclude large output payloads in execution response
