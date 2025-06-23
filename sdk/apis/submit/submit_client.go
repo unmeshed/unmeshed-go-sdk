@@ -35,6 +35,7 @@ type SubmitClient struct {
 	stopPolling        atomic.Bool
 	workerWg           sync.WaitGroup
 	cleanupWg          sync.WaitGroup
+	lastLogTime        time.Time
 }
 
 func NewSubmitClient(httpRequestFactory *apis.HttpRequestFactory, clientConfig *configs.ClientConfig) *SubmitClient {
@@ -104,6 +105,13 @@ func (c *SubmitClient) processQueue(queue *common.Queue, queueType string) {
 		// If no items collected, wait a bit and continue
 		if len(batch) == 0 {
 			time.Sleep(time.Duration(c.clientConfig.GetSubmitClientSleepIntervalMillis()) * time.Millisecond)
+
+			// Log only once every 30 seconds
+			if time.Since(c.lastLogTime) >= 30*time.Second {
+				log.Printf("No item received from queue %s in %d seconds, retrying...", queueType, timeout)
+				c.lastLogTime = time.Now()
+			}
+
 			continue
 		}
 
@@ -213,19 +221,18 @@ func (c *SubmitClient) isPermanentError(result *common.ClientSubmitResult) bool 
 	return false
 }
 
-func (c *SubmitClient) Submit(workResponse *common.WorkResponse, stepPollState *common.StepPollState) error {
+func (c *SubmitClient) Submit(workResponse *common.WorkResponse, stepPollState *common.StepPollState) {
 	log.Printf("Submitting results to queue: %+v", workResponse)
-	c.submitTrackerLock.Lock()
 	epochMillis := time.Now().UnixMilli()
 	tracker := common.NewWorkResponseTracker(workResponse)
 	tracker.QueuedTime = epochMillis
 	tracker.StepPollState = stepPollState
 	tracker.RetryCount = 0
+	c.submitTrackerLock.Lock()
 	c.submitTracker[workResponse.GetStepID()] = tracker
 	c.submitTrackerLock.Unlock()
 	c.mainQueue.Put(workResponse)
 	log.Printf("Result[%v] from stepId %d queued!", workResponse.GetStatus(), workResponse.GetStepID())
-	return nil
 }
 
 func (c *SubmitClient) GetSubmitTrackerSize() int {

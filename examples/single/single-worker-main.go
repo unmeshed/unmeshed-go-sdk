@@ -2,13 +2,13 @@ package main
 
 import (
 	"fmt"
-	"os"
-	"os/signal"
-	"syscall"
-
 	apis "github.com/unmeshed/unmeshed-go-sdk/sdk/apis/main"
 	apis2 "github.com/unmeshed/unmeshed-go-sdk/sdk/apis/workers"
 	"github.com/unmeshed/unmeshed-go-sdk/sdk/configs"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 )
 
 var unmeshedClient *apis.UnmeshedClient
@@ -16,6 +16,7 @@ var unmeshedClient *apis.UnmeshedClient
 // TestWorker is a simple worker function that returns a test message
 func TestWorker(data map[string]interface{}) string {
 	fmt.Println("TestWorker running with data:", data)
+	time.Sleep(1 * time.Second)
 	return "Hello from test-worker!"
 }
 
@@ -29,10 +30,10 @@ func main() {
 	clientConfig.SetAuthToken("MAoL7MFfKagCFtEW2DUS")
 	clientConfig.SetDelayMillis(40)
 	clientConfig.SetPort(8080)
-	clientConfig.SetWorkRequestBatchSize(200)
+	clientConfig.SetWorkRequestBatchSize(500)
 	clientConfig.SetBaseURL("http://localhost")
 	clientConfig.SetStepTimeoutMillis(36000000)
-	clientConfig.SetMaxWorkers(20)
+	clientConfig.SetMaxWorkers(100)
 
 	// Create the Unmeshed client
 	var err error

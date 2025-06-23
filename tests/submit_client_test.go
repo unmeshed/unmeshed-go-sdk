@@ -40,8 +40,7 @@ func TestSubmit_AddsToTrackerAndQueue(t *testing.T) {
 	workResponse := common.NewWorkResponse()
 	workResponse.SetStepID(123)
 	stepPollState := common.NewStepPollState(1)
-	err := client.Submit(workResponse, stepPollState)
-	assert.NoError(t, err)
+	client.Submit(workResponse, stepPollState)
 	assert.Equal(t, 1, client.GetSubmitTrackerSize())
 	client.Stop()
 }
@@ -71,8 +70,7 @@ func TestSubmit_StepPollStateCount(t *testing.T) {
 	workResponse := common.NewWorkResponse()
 	workResponse.SetStepID(123)
 	stepPollState := common.NewStepPollState(3)
-	err := client.Submit(workResponse, stepPollState)
-	assert.NoError(t, err)
+	client.Submit(workResponse, stepPollState)
 	assert.Equal(t, 1, client.GetSubmitTrackerSize())
 	client.Stop()
 }
