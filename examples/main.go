@@ -16,6 +16,8 @@ import (
 
 var GlobalCounter int = 0
 
+var unmeshedClient *apis.UnmeshedClient
+
 type MathOperations struct{}
 
 func (m *MathOperations) Sum(data map[string]int) int {
@@ -144,6 +146,18 @@ func DelayedResponse(data map[string]interface{}) string {
 	return "Response after 10 seconds delay"
 }
 
+func PrintCurrentWorkRequest(data map[string]interface{}) string {
+	if unmeshedClient != nil {
+		current := unmeshedClient.GetCurrentWorkRequest()
+		if current != nil {
+			fmt.Printf("Current WorkRequest in goroutine: %+v\n", current)
+			return "Printed current work request to stdout"
+		}
+		return "No current work request found"
+	}
+	return "unmeshedClient is nil"
+}
+
 func main() {
 	os.Setenv("DISABLE_RUNNING_WORKER_LOGS", "true")
 	workerList := []*apis2.Worker{
@@ -160,6 +174,7 @@ func main() {
 		apis2.NewWorker(KeyWithMaxValue, "key_with_max_value"),
 		apis2.NewWorker(ReverseMap, "reverse_map"),
 		apis2.NewWorker(FlattenValues, "flatten_values"),
+		apis2.NewWorker(PrintCurrentWorkRequest, "print-current-work-request"),
 	}
 
 	clientConfig := configs.NewClientConfig()
@@ -171,7 +186,8 @@ func main() {
 	clientConfig.SetBaseURL("http://localhost")
 	clientConfig.SetStepTimeoutMillis(36000000)
 	clientConfig.SetMaxWorkers(20)
-	unmeshedClient, err := apis.NewUnmeshedClient(clientConfig)
+	var err error
+	unmeshedClient, err = apis.NewUnmeshedClient(clientConfig)
 	if err != nil {
 		fmt.Printf("Error creating client: %v\n", err)
 		return
