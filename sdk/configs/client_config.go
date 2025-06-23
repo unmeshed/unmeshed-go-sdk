@@ -3,22 +3,23 @@ package configs
 import "github.com/unmeshed/unmeshed-go-sdk/sdk/common"
 
 type ClientConfig struct {
-	Namespace                      string
-	BaseURL                        string
-	Port                           int
-	ConnectionTimeoutSecs          int64
-	SubmitClientPollTimeoutSeconds float64
-	StepTimeoutMillis              int64
-	DelayMillis                    int64
-	WorkRequestBatchSize           int
-	StepSubmissionAttempts         int64
-	ClientID                       string
-	AuthToken                      string
-	MaxWorkers                     int64
-	PollRequestData                common.PollRequestData
-	ResponseSubmitBatchSize        int
-	permanentErrorKeywords         []string
-	MaxSubmitAttempts              int64
+	Namespace                       string
+	BaseURL                         string
+	Port                            int
+	ConnectionTimeoutSecs           int64
+	SubmitClientPollTimeoutSeconds  float64
+	StepTimeoutMillis               int64
+	DelayMillis                     int64
+	WorkRequestBatchSize            int
+	StepSubmissionAttempts          int64
+	ClientID                        string
+	AuthToken                       string
+	MaxWorkers                      int64
+	PollRequestData                 common.PollRequestData
+	ResponseSubmitBatchSize         int
+	permanentErrorKeywords          []string
+	MaxSubmitAttempts               int64
+	SubmitClientSleepIntervalMillis int64
 }
 
 func NewClientConfig() *ClientConfig {
@@ -51,7 +52,8 @@ func NewClientConfig() *ClientConfig {
 			"Invalid request, step is not in RUNNING state",
 			"please poll the latest and update",
 		},
-		MaxSubmitAttempts: maxSubmitAttempts,
+		MaxSubmitAttempts:               maxSubmitAttempts,
+		SubmitClientSleepIntervalMillis: 100,
 	}
 }
 
@@ -80,6 +82,9 @@ func (c *ClientConfig) GetMaxWorkers() int64                       { return c.Ma
 func (c *ClientConfig) GetPollRequestData() common.PollRequestData { return c.PollRequestData }
 func (c *ClientConfig) GetResponseSubmitBatchSize() int            { return c.ResponseSubmitBatchSize }
 func (c *ClientConfig) GetMaxSubmitAttempts() int64                { return c.MaxSubmitAttempts }
+func (c *ClientConfig) GetSubmitClientSleepIntervalMillis() int64 {
+	return c.SubmitClientSleepIntervalMillis
+}
 
 func (c *ClientConfig) SetNamespace(namespace string) {
 	if namespace == "" {
@@ -175,4 +180,11 @@ func (c *ClientConfig) SetMaxSubmitAttempts(maxSubmitAttempts int64) {
 		panic("Max submit attempts must be a positive integer")
 	}
 	c.MaxSubmitAttempts = maxSubmitAttempts
+}
+
+func (c *ClientConfig) SetSubmitClientSleepIntervalMillis(sleepIntervalMillis int64) {
+	if sleepIntervalMillis < 0 {
+		panic("Submit client sleep interval cannot be negative")
+	}
+	c.SubmitClientSleepIntervalMillis = sleepIntervalMillis
 }
