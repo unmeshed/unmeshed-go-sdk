@@ -36,83 +36,78 @@ func (wr *WorkerRunner) RunWorker(worker *workers.Worker, workRequest *common.Wo
 
 func (wr *WorkerRunner) invokeFunction(f FunctionWrapper) (interface{}, error) {
 	fnType := reflect.TypeOf(f.Fn)
-
 	if fnType.Kind() != reflect.Func {
 		log.Printf("Skipping invalid function: %+v (Incorrect signature)\n", f.Fn)
 		return nil, errors.New("Skipping invalid function")
 	}
 
+	if fnType.NumIn() != 1 {
+		log.Printf("Function must accept exactly one argument: %+v\n", f.Fn)
+		return nil, errors.New("Function must accept exactly one argument")
+	}
+
 	argType := fnType.In(0)
 	argValue := reflect.ValueOf(f.Arg)
 
-	if argValue.Type().Kind() == reflect.Map && argValue.Type().Key().Kind() == reflect.String {
+	if argValue.Type().Kind() == reflect.Map && argValue.Type().Key().Kind() == reflect.String ||
+		argValue.Type().Kind() == reflect.Slice {
 		targetValue := reflect.New(argType).Elem()
 		jsonData, err := json.Marshal(f.Arg)
 		if err != nil {
-			log.Printf("JSON marshal error for function: %+v, error: %v\n", f.Fn, err)
+			log.Printf("JSON marshal error: %v\n", err)
 			return nil, err
 		}
-
 		err = json.Unmarshal(jsonData, targetValue.Addr().Interface())
 		if err != nil {
-			log.Printf("JSON unmarshal error for function: %+v, error: %v\n", f.Fn, err)
-			return nil, err
-		}
-		argValue = targetValue
-	} else if argValue.Type().Kind() == reflect.Slice {
-		targetValue := reflect.New(argType).Elem()
-		jsonData, err := json.Marshal(f.Arg)
-		if err != nil {
-			log.Printf("JSON marshal error for function: %+v, error: %v\n", f.Fn, err)
-			return nil, err
-		}
-
-		err = json.Unmarshal(jsonData, targetValue.Addr().Interface())
-		if err != nil {
-			log.Printf("JSON unmarshal error for function: %+v, error: %v\n", f.Fn, err)
+			log.Printf("JSON unmarshal error: %v\n", err)
 			return nil, err
 		}
 		argValue = targetValue
 	} else {
-		log.Printf("Argument for function: %+v must be a map[string]interface{} or []interface{}\n", f.Fn)
-		return nil, fmt.Errorf("Argument for function: %+v must be a map[string]interface{} or []interface{}", f.Fn)
+		log.Printf("Invalid input type for function: %+v\n", f.Fn)
+		return nil, fmt.Errorf("Argument must be map[string]interface{} or []interface{}")
 	}
 
-	// Ensure pointer compatibility
 	if argType.Kind() == reflect.Ptr && argValue.Kind() != reflect.Ptr {
 		argValue = argValue.Addr()
 	} else if argType.Kind() != reflect.Ptr && argValue.Kind() == reflect.Ptr {
 		argValue = argValue.Elem()
 	}
 
-	results := reflect.ValueOf(f.Fn).Call([]reflect.Value{argValue})
+	rawResults := reflect.ValueOf(f.Fn).Call([]reflect.Value{argValue})
+	numResults := len(rawResults)
 
-	var finalResults []interface{}
-
-	for _, result := range results {
-		finalResults = append(finalResults, result.Interface())
+	if numResults == 0 {
+		return nil, nil
 	}
 
-	if len(finalResults) > 0 {
-		if err, ok := finalResults[len(finalResults)-1].(error); ok {
-			results := finalResults[:len(finalResults)-1]
-			if err != nil {
-				return nil, err
-			}
-			if len(results) == 1 {
-				result := results[0]
-				if reflect.TypeOf(result).Kind() != reflect.Slice && reflect.TypeOf(result).Kind() != reflect.Array {
-					return result, err
-				}
-			}
-			return results, err
+	// Detect if last value is an error (even if interface is nil)
+	lastVal := rawResults[numResults-1]
+	lastType := fnType.Out(numResults - 1)
+
+	isError := lastType.Implements(reflect.TypeOf((*error)(nil)).Elem())
+	finalResults := []interface{}{}
+
+	if isError {
+		errVal := lastVal.Interface()
+		if errVal != nil {
+			return nil, errVal.(error)
 		}
+		// Discard nil error
+		rawResults = rawResults[:numResults-1]
+		numResults--
+	}
+
+	// Build result slice
+	for i := 0; i < numResults; i++ {
+		finalResults = append(finalResults, rawResults[i].Interface())
 	}
 
 	if len(finalResults) == 1 {
-		result := finalResults[0]
-		if reflect.TypeOf(result).Kind() != reflect.Slice && reflect.TypeOf(result).Kind() != reflect.Array {
-			return result, nil
+		// Unwrap single result (not slice)
+		kind := reflect.TypeOf(finalResults[0]).Kind()
+		if kind != reflect.Slice && kind != reflect.Array {
+			return finalResults[0], nil
 		}
 	}
 
@@ -121,6 +116,6 @@ func (wr *WorkerRunner) invokeFunction(f FunctionWrapper) (interface{}, error) {
 
 func (wr *WorkerRunner) invokeFunctions(functions []FunctionWrapper) {
 	for _, f := range functions {
-		wr.invokeFunction(f)
+		_, _ = wr.invokeFunction(f)
 	}
 }
