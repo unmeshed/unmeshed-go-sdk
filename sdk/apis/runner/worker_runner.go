@@ -96,6 +96,9 @@ func (wr *WorkerRunner) invokeFunction(f FunctionWrapper) (interface{}, error) {
 	if len(finalResults) > 0 {
 		if err, ok := finalResults[len(finalResults)-1].(error); ok {
 			results := finalResults[:len(finalResults)-1]
+			if err != nil {
+				return nil, err
+			}
 			if len(results) == 1 {
 				result := results[0]
 				if reflect.TypeOf(result).Kind() != reflect.Slice && reflect.TypeOf(result).Kind() != reflect.Array {
