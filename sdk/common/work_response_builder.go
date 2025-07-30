@@ -82,7 +82,17 @@ func (b *WorkResponseBuilder) resultToMap(obj interface{}) map[string]interface{
 
 func (b *WorkResponseBuilder) FailResponse(workRequest *WorkRequest, context error) *WorkResponse {
 	actualCause := b.tryPeelIrrelevantExceptions(context)
-	output := map[string]interface{}{"error": actualCause.Error()}
+
+	var innerError interface{}
+	errMsg := actualCause.Error()
+
+	if json.Unmarshal([]byte(errMsg), &innerError) != nil {
+		innerError = errMsg
+	}
+
+	output := map[string]interface{}{
+		"error": innerError,
+	}
 
 	workResponse := NewWorkResponse()
 	workResponse.SetProcessID(workRequest.ProcessID)
