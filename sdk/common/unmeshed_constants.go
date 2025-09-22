@@ -33,7 +33,6 @@ const (
 	StepTypeGraphQL        StepType = "GRAPHQL"
 	StepTypeFlowGateway    StepType = "FLOW_GATEWAY"
 	StepTypeDecisionEngine StepType = "DECISION_ENGINE"
-	StepTypeSlack          StepType = "SLACK"
 	StepTypeIntegration    StepType = "INTEGRATION"
 	StepTypeExit           StepType = "EXIT"
 	StepTypeSubProcess     StepType = "SUB_PROCESS"
