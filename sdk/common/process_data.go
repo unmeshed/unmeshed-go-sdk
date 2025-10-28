@@ -24,6 +24,7 @@ type ProcessData struct {
 	Created         *int64                 `json:"created,omitempty"`
 	Updated         *int64                 `json:"updated,omitempty"`
 	CreatedBy       *string                `json:"createdBy,omitempty"`
+	Tags            []*TagValue            `json:"tags,omitempty"`
 }
 
 func NewProcessData() *ProcessData {
@@ -216,4 +217,13 @@ func (p *ProcessData) SetUpdated(updated *int64) {
 
 func (p *ProcessData) SetCreatedBy(createdBy *string) {
 	p.CreatedBy = createdBy
+}
+
+func (p *ProcessData) GetTags() []*TagValue {
+	return p.Tags
+}
+
+// Setter for Tags
+func (p *ProcessData) SetTags(tags []*TagValue) {
+	p.Tags = tags
 }
