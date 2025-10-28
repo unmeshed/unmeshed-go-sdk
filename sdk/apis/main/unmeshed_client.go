@@ -95,8 +95,8 @@ type UnmeshedClient struct {
 	initialDelayMillis       int
 	backoffMultiplier        int
 	retryCount               atomic.Int32
-	workerByName             map[string]bool
-	workersByName            map[string]*workersApi.Worker
+	workerByID               map[string]bool // Changed from workerByName to workerByID
+	workersByID              map[string]*workersApi.Worker // Changed from workersByName to workersByID
 	httpClientFactory        *apis.HttpClientFactory
 	httpRequestFactory       *apis.HttpRequestFactory
 	registrationClient       *register.RegistrationClient
@@ -144,8 +144,8 @@ func NewUnmeshedClient(
 		initialDelayMillis:       0,
 		backoffMultiplier:        2,
 		retryCount:               atomic.Int32{},
-		workerByName:             make(map[string]bool),
-		workersByName:            make(map[string]*workersApi.Worker),
+		workerByID:               make(map[string]bool), // Changed
+		workersByID:              make(map[string]*workersApi.Worker), // Changed
 		httpClientFactory:        httpClientFactory,
 		httpRequestFactory:       httpRequestFactory,
 		registrationClient:       register.NewRegistrationClient(clientConfig, httpClientFactory, httpRequestFactory),
@@ -317,12 +317,14 @@ func (uc *UnmeshedClient) startAsyncTaskProcessing() {
 		go func() {
 			defer workerWg.Done()
 			for workRequest := range workQueue {
-				foundWorker := uc.workersByName[workRequest.GetStepName()]
+				// Use worker ID (namespace:name) to look up the worker
+				workerId := formattedWorkerID(workRequest.GetStepNamespace(), workRequest.GetStepName())
+				foundWorker := uc.workersByID[workerId]
 
 				if foundWorker != nil {
 					uc.runStep(foundWorker, &workRequest)
 				} else {
-					log.Printf("No worker found for step '%s'\n", workRequest.GetStepName())
+					log.Printf("No worker found for step '%s:%s'\n", workRequest.GetStepNamespace(), workRequest.GetStepName())
 				}
 			}
 		}()
@@ -432,13 +434,18 @@ func (uc *UnmeshedClient) Start() {
 }
 
 func (uc *UnmeshedClient) registerWorker(worker *workersApi.Worker) error {
-	if _, exists := uc.workerByName[worker.GetName()]; exists {
-		return fmt.Errorf("worker with name %s is already registered", worker.GetName())
+	// Create unique worker ID using namespace and name
+	workerId := formattedWorkerID(worker.GetNamespace(), worker.GetName())
+	
+	if _, exists := uc.workerByID[workerId]; exists {
+		return fmt.Errorf("worker with namespace '%s' and name '%s' is already registered", 
+			worker.GetNamespace(), worker.GetName())
 	}
 
 	method := worker.GetExecutionMethod()
 	if method == nil {
-		return fmt.Errorf("no execution method found for worker %s", worker.GetName())
+		return fmt.Errorf("no execution method found for worker %s:%s", 
+			worker.GetNamespace(), worker.GetName())
 	}
 
 	methodType := reflect.TypeOf(method)
@@ -448,12 +455,15 @@ func (uc *UnmeshedClient) registerWorker(worker *workersApi.Worker) error {
 			methodType.Name(), methodType.NumIn())
 	}
 
-	uc.workerByName[worker.GetName()] = true
+	uc.workerByID[workerId] = true
 	uc.Workers = append(uc.Workers, *worker)
-	uc.workersByName[worker.GetName()] = worker
+	uc.workersByID[workerId] = worker
 
 	workers := []workers.Worker{*worker}
 	uc.registrationClient.AddWorkers(workers)
+	
+	log.Printf("Registered worker: %s:%s", worker.GetNamespace(), worker.GetName())
+	
 	return nil
 }
 

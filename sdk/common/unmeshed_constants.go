@@ -33,6 +33,8 @@ const (
 	StepTypeGraphQL        StepType = "GRAPHQL"
 	StepTypeFlowGateway    StepType = "FLOW_GATEWAY"
 	StepTypeDecisionEngine StepType = "DECISION_ENGINE"
+	StepTypeAIAgent        StepType = "AI_AGENT"
+	StepTypeSqlite         StepType = "SQLITE"
 	StepTypeIntegration    StepType = "INTEGRATION"
 	StepTypeExit           StepType = "EXIT"
 	StepTypeSubProcess     StepType = "SUB_PROCESS"
