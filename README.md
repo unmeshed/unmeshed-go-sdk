@@ -208,7 +208,7 @@ You can manage process definitions directly from the SDK — create, update, fet
 
 🏗️ Create a Process Definition
 
-```go
+```
 noop1 := &common.StepDefinition{
     Name:        StringPtr("noop1"),
     Ref:         StringPtr("noop1"),
@@ -243,7 +243,8 @@ fmt.Printf("Created process definition: %+v\n", created)
 ```
 
 ✏️ Update a Process Definition
-```go
+
+```
 noop3 := &common.StepDefinition{
     Name:        StringPtr("noop3"),
     Ref:         StringPtr("noop3"),
@@ -270,7 +271,8 @@ fmt.Printf("Updated process definition: %+v\n", updated)
 ```
 
 🗑️ Delete Process Definitions
-```go
+
+```
 defs, err := client.GetAllProcessDefinitions()
 if err != nil {
     fmt.Printf("Error fetching definitions: %v\n", err)
@@ -296,7 +298,7 @@ if len(toDelete) > 0 {
 
 Delete only a specific version:
 
-```go
+```
 version := 1
 var version1Defs []*common.ProcessDefinition
 for _, pd := range defs {
@@ -317,7 +319,8 @@ if len(version1Defs) > 0 {
 
 
 🔍 Get Process Definitions
-```go
+
+```
 // Get latest version
 latest, err := client.GetProcessDefinitionLatestOrVersion("default", "test-process", nil)
 if err != nil {
@@ -379,6 +382,8 @@ import (
         time.Sleep(10 * time.Second)
         return "Response after 10 seconds delay"
     }
+
+    
 
     func main() {
         // Configure the client
