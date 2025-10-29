@@ -209,7 +209,7 @@ The client will start polling for jobs and dispatching them to your workers. It'
 
 ---
 
-## 🧩 Process Definition Management
+## Process Definition Management
 
 You can manage process definitions directly from the SDK — create, update, fetch, and delete definitions programmatically.
 
