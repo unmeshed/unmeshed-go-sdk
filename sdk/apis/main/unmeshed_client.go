@@ -449,7 +449,7 @@ func (uc *UnmeshedClient) GetAllProcessDefinitions() ([]*common.ProcessDefinitio
 	return uc.processClient.GetAllProcessDefinitions()
 }
 
-func (uc *UnmeshedClient) DeleteProcessDefinitions(processDefinitions []*common.ProcessDefinition, versionOnly bool) (map[string]interface{}, error) {
+func (uc *UnmeshedClient) DeleteProcessDefinitions(processDefinitions []*common.ProcessDefinition, versionOnly bool) (any, error) {
 	return uc.processClient.DeleteProcessDefinitions(processDefinitions, versionOnly)
 }
 

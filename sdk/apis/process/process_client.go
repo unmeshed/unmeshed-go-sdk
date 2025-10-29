@@ -539,7 +539,7 @@ func (pc *ProcessClient) GetAllProcessDefinitions() ([]*common.ProcessDefinition
 	return result, nil
 }
 
-func (pc *ProcessClient) DeleteProcessDefinitions(processDefinitions []*common.ProcessDefinition, versionOnly bool) (map[string]interface{}, error) {
+func (pc *ProcessClient) DeleteProcessDefinitions(processDefinitions []*common.ProcessDefinition, versionOnly bool) (any, error) {
 	if len(processDefinitions) == 0 {
 		return nil, fmt.Errorf("process definitions cannot be empty")
 	}
@@ -566,7 +566,7 @@ func (pc *ProcessClient) DeleteProcessDefinitions(processDefinitions []*common.P
 		return nil, fmt.Errorf("invalid response deleting process definitions (Status %d): %s", response.StatusCode, errorMsg)
 	}
 
-	var result map[string]interface{}
+	var result any
 	if err := json.NewDecoder(response.Body).Decode(&result); err != nil {
 		return nil, fmt.Errorf("failed to parse response JSON: %w", err)
 	}
