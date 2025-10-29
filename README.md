@@ -35,7 +35,7 @@ go get github.com/unmeshed/unmeshed-go-sdk
 
 Here's a super simple example to get you up and running:
 
-```go
+```
 package main
 
 import (
@@ -80,7 +80,7 @@ Before you can start processing jobs, you'll need to configure your Unmeshed cli
 
 Example:
 
-```go
+```
 cfg := configs.NewClientConfig()
 cfg.SetClientID("your-client-id")
 cfg.SetAuthToken("your-auth-token")
@@ -101,7 +101,7 @@ A **worker** is just a Go function that takes some input and returns a result. Y
 
 Here are some examples:
 
-```go
+```
 // Sums all the values in the map
 func Sum(data map[string]int) int {
     total := 0
@@ -112,7 +112,7 @@ func Sum(data map[string]int) int {
 }
 ```
 
-```go
+```
 // Returns an error
 func FailExample(data map[string]interface{}) error {
     return errors.New("failing worker")
@@ -121,7 +121,7 @@ func FailExample(data map[string]interface{}) error {
 
 Getting currently executed workRequest by client:
 
-```go
+```
 workRequest := unmeshedClient.GetCurrentWorkRequest()
 fmt.Println(workRequest)
 ```
@@ -130,7 +130,7 @@ Display/Hide Large values as part of output during process search.
 
 Use flag `hideLargeValues` as part of `GetProcessData(processId, includeSteps, hideLargeValues)` to include/exclude large output payloads in execution response:
 
-```go
+```
 processData1Retrieved1, err := unmeshedClient.GetProcessData(processData1.ProcessID, false, false)
 if err != nil {
     fmt.Printf("Error getting process data: %v\n", err)
@@ -142,7 +142,7 @@ fmt.Printf("Since the flag to include steps was false the steps was not returned
 
 To reschedule a worker with same iteration use return type of function as `StepResult` and use `KeepRunning` and `RescheduleAfterSeconds` fields to control behaviour whether to complete or reschedule it:
 
-```go
+```
 var GlobalCounter int = 0
 
 func RescheduleWorkerExample(data map[string]interface{}) *common.StepResult {
@@ -162,14 +162,14 @@ func RescheduleWorkerExample(data map[string]interface{}) *common.StepResult {
 }
 ```
 
-```go
+```
 // Returns a list of strings
 func ListExample(data map[string]interface{}) []string {
     return []string{"hello", "world"}
 }
 ```
 
-```go
+```
 // Multiple outputs
 func MultiOutputExample(data map[string]interface{}) (string, int) {
     return "Processed Successfully", len(data)
@@ -178,7 +178,7 @@ func MultiOutputExample(data map[string]interface{}) (string, int) {
 
 Register your workers like this:
 
-```go
+```
 import apis2 "github.com/unmeshed/unmeshed-go-sdk/sdk/apis/workers"
 
 workers := []*apis2.Worker{
@@ -215,7 +215,7 @@ You can manage process definitions directly from the SDK — create, update, fet
 
 ### 🏗️ Create a Process Definition
 
-```go
+```
 noop1 := &common.StepDefinition{
     Name:        StringPtr("noop1"),
     Ref:         StringPtr("noop1"),
@@ -251,7 +251,7 @@ fmt.Printf("Created process definition: %+v\n", created)
 
 ### ✏️ Update a Process Definition
 
-```go
+```
 noop3 := &common.StepDefinition{
     Name:        StringPtr("noop3"),
     Ref:         StringPtr("noop3"),
@@ -279,7 +279,7 @@ fmt.Printf("Updated process definition: %+v\n", updated)
 
 ### 🗑️ Delete Process Definitions
 
-```go
+```
 defs, err := client.GetAllProcessDefinitions()
 if err != nil {
     fmt.Printf("Error fetching definitions: %v\n", err)
@@ -305,7 +305,7 @@ if len(toDelete) > 0 {
 
 Delete only a specific version:
 
-```go
+```
 version := 1
 var version1Defs []*common.ProcessDefinition
 for _, pd := range defs {
