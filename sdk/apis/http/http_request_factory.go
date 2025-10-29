@@ -168,3 +168,24 @@ func (factory *HttpRequestFactory) CreatePutRequest(path string, params map[stri
 func (factory *HttpRequestFactory) CreatePostRequestWithBody(path string, body []byte) (*http.Response, error) {
 	return factory.CreatePostRequest(path, nil, body)
 }
+
+func (factory *HttpRequestFactory) CreateDeleteRequest(path string, params map[string]interface{}, body []byte) (*http.Response, error) {
+	uri := factory.buildURI(path, params)
+	var requestBody *bytes.Reader
+
+	if body != nil {
+		requestBody = bytes.NewReader(body)
+	} else {
+		requestBody = bytes.NewReader([]byte{})
+	}
+
+	req, err := http.NewRequest("DELETE", uri, requestBody)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", "application/json")
+	req.Header.Add("Authorization", factory.bearerValue)
+
+	return factory.client.Do(req)
+}
