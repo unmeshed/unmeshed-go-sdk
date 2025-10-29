@@ -95,7 +95,7 @@ type UnmeshedClient struct {
 	initialDelayMillis       int
 	backoffMultiplier        int
 	retryCount               atomic.Int32
-	workerByID               map[string]bool // Changed from workerByName to workerByID
+	workerByID               map[string]bool               // Changed from workerByName to workerByID
 	workersByID              map[string]*workersApi.Worker // Changed from workersByName to workersByID
 	httpClientFactory        *apis.HttpClientFactory
 	httpRequestFactory       *apis.HttpRequestFactory
@@ -144,7 +144,7 @@ func NewUnmeshedClient(
 		initialDelayMillis:       0,
 		backoffMultiplier:        2,
 		retryCount:               atomic.Int32{},
-		workerByID:               make(map[string]bool), // Changed
+		workerByID:               make(map[string]bool),               // Changed
 		workersByID:              make(map[string]*workersApi.Worker), // Changed
 		httpClientFactory:        httpClientFactory,
 		httpRequestFactory:       httpRequestFactory,
@@ -433,18 +433,42 @@ func (uc *UnmeshedClient) Start() {
 	<-uc.done
 }
 
+func (uc *UnmeshedClient) CreateNewProcessDefinition(processDefinition *common.ProcessDefinition) (*common.ProcessDefinition, error) {
+	return uc.processClient.CreateNewProcessDefinition(processDefinition)
+}
+
+func (uc *UnmeshedClient) UpdateProcessDefinition(processDefinition *common.ProcessDefinition) (*common.ProcessDefinition, error) {
+	return uc.processClient.UpdateProcessDefinition(processDefinition)
+}
+
+func (uc *UnmeshedClient) GetProcessDefinitionLatestOrVersion(namespace, name string, version *int) (*common.ProcessDefinition, error) {
+	return uc.processClient.GetProcessDefinitionLatestOrVersion(namespace, name, version)
+}
+
+func (uc *UnmeshedClient) GetAllProcessDefinitions() ([]*common.ProcessDefinition, error) {
+	return uc.processClient.GetAllProcessDefinitions()
+}
+
+func (uc *UnmeshedClient) DeleteProcessDefinitions(processDefinitions []*common.ProcessDefinition, versionOnly bool) (map[string]interface{}, error) {
+	return uc.processClient.DeleteProcessDefinitions(processDefinitions, versionOnly)
+}
+
+func (uc *UnmeshedClient) GetProcessDefinitionVersions(namespace, name string) ([]int, error) {
+	return uc.processClient.GetProcessDefinitionVersions(namespace, name)
+}
+
 func (uc *UnmeshedClient) registerWorker(worker *workersApi.Worker) error {
 	// Create unique worker ID using namespace and name
 	workerId := formattedWorkerID(worker.GetNamespace(), worker.GetName())
-	
+
 	if _, exists := uc.workerByID[workerId]; exists {
-		return fmt.Errorf("worker with namespace '%s' and name '%s' is already registered", 
+		return fmt.Errorf("worker with namespace '%s' and name '%s' is already registered",
 			worker.GetNamespace(), worker.GetName())
 	}
 
 	method := worker.GetExecutionMethod()
 	if method == nil {
-		return fmt.Errorf("no execution method found for worker %s:%s", 
+		return fmt.Errorf("no execution method found for worker %s:%s",
 			worker.GetNamespace(), worker.GetName())
 	}
 
@@ -461,9 +485,9 @@ func (uc *UnmeshedClient) registerWorker(worker *workersApi.Worker) error {
 
 	workers := []workers.Worker{*worker}
 	uc.registrationClient.AddWorkers(workers)
-	
+
 	log.Printf("Registered worker: %s:%s", worker.GetNamespace(), worker.GetName())
-	
+
 	return nil
 }
 

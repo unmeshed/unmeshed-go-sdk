@@ -198,7 +198,143 @@ Once everything's set up, just call:
 client.Start()
 
 The client will start polling for jobs and dispatching them to your workers. It's fully async and runs in the background.
+---
 
+---
+
+## 🧩 Process Definition Management
+
+You can manage process definitions directly from the SDK — create, update, fetch, and delete definitions programmatically.
+
+🏗️ Create a Process Definition
+
+```go
+noop1 := &common.StepDefinition{
+    Name:        StringPtr("noop1"),
+    Ref:         StringPtr("noop1"),
+    Description: StringPtr("Test noop 1"),
+    Type:        StepTypePtr(common.NOOP),
+    Input:       map[string]interface{}{"key1": "val1"},
+}
+
+noop2 := &common.StepDefinition{
+    Name:        StringPtr("noop2"),
+    Ref:         StringPtr("noop2"),
+    Description: StringPtr("Test noop 2"),
+    Type:        StepTypePtr(common.NOOP),
+    Input:       map[string]interface{}{"key1": "val1"},
+}
+
+processDef := &common.ProcessDefinition{
+    Name:        StringPtr("test-process"),
+    Version:     IntPtr(1),
+    Namespace:   StringPtr("default"),
+    Description: StringPtr("Testing Process"),
+    Type:        StringPtr("API_ORCHESTRATION"),
+    Steps:       []*common.StepDefinition{noop1, noop2},
+}
+
+created, err := client.CreateNewProcessDefinition(processDef)
+if err != nil {
+    fmt.Printf("Error creating process definition: %v\n", err)
+    return
+}
+fmt.Printf("Created process definition: %+v\n", created)
+```
+
+✏️ Update a Process Definition
+```go
+noop3 := &common.StepDefinition{
+    Name:        StringPtr("noop3"),
+    Ref:         StringPtr("noop3"),
+    Description: StringPtr("Test noop 3"),
+    Type:        StepTypePtr(common.NOOP),
+    Input:       map[string]interface{}{"key1": "val1"},
+}
+
+updatedDef := &common.ProcessDefinition{
+    Name:        StringPtr("test-process"),
+    Version:     IntPtr(2),
+    Namespace:   StringPtr("default"),
+    Description: StringPtr("Testing Process Updated"),
+    Type:        StringPtr("API_ORCHESTRATION"),
+    Steps:       []*common.StepDefinition{noop1, noop2, noop3},
+}
+
+updated, err := client.UpdateProcessDefinition(updatedDef)
+if err != nil {
+    fmt.Printf("Error updating process definition: %v\n", err)
+    return
+}
+fmt.Printf("Updated process definition: %+v\n", updated)
+```
+
+🗑️ Delete Process Definitions
+```go
+defs, err := client.GetAllProcessDefinitions()
+if err != nil {
+    fmt.Printf("Error fetching definitions: %v\n", err)
+    return
+}
+
+var toDelete []*common.ProcessDefinition
+for _, pd := range defs {
+    if *pd.Name == "test-process" && *pd.Namespace == "default" {
+        toDelete = append(toDelete, pd)
+    }
+}
+
+if len(toDelete) > 0 {
+    response, err := client.DeleteProcessDefinitions(toDelete, false) // false = delete all versions
+    if err != nil {
+        fmt.Printf("Error deleting definitions: %v\n", err)
+        return
+    }
+    fmt.Printf("Delete response: %+v\n", response)
+}
+```
+
+Delete only a specific version:
+
+```go
+version := 1
+var version1Defs []*common.ProcessDefinition
+for _, pd := range defs {
+    if *pd.Name == "test-process" && *pd.Namespace == "default" && *pd.Version == version {
+        version1Defs = append(version1Defs, pd)
+    }
+}
+
+if len(version1Defs) > 0 {
+    response, err := client.DeleteProcessDefinitions(version1Defs, true) // true = delete only version 1
+    if err != nil {
+        fmt.Printf("Error deleting version: %v\n", err)
+        return
+    }
+    fmt.Printf("Delete version response: %+v\n", response)
+}
+```
+
+
+🔍 Get Process Definitions
+```go
+// Get latest version
+latest, err := client.GetProcessDefinitionLatestOrVersion("default", "test-process", nil)
+if err != nil {
+    fmt.Printf("Error getting latest definition: %v\n", err)
+    return
+}
+fmt.Printf("Latest definition: name=%s, version=%d\n", *latest.Name, *latest.Version)
+
+// Get specific version
+version := 1
+specific, err := client.GetProcessDefinitionLatestOrVersion("default", "test-process", &version)
+if err != nil {
+    fmt.Printf("Error getting specific definition: %v\n", err)
+    return
+}
+fmt.Printf("Specific version: name=%s, version=%d\n", *specific.Name, *specific.Version)
+```
 ---
 
 ## Full Example

@@ -413,3 +413,216 @@ func (pc *ProcessClient) InvokeAPIMappingPost(endpoint string, input map[string]
 
 	return result, nil
 }
+
+func (pc *ProcessClient) CreateNewProcessDefinition(processDefinition *common.ProcessDefinition) (*common.ProcessDefinition, error) {
+	if processDefinition == nil {
+		return nil, fmt.Errorf("process definition cannot be nil")
+	}
+
+	url := "api/processDefinitions"
+	params := make(map[string]interface{})
+
+	jsonBody, err := json.Marshal(processDefinition)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal process definition: %w", err)
+	}
+
+	response, err := pc.httpRequestFactory.CreatePostRequest(url, params, jsonBody)
+	if err != nil {
+		return nil, fmt.Errorf("request error: %w", err)
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(response.Body)
+		errorMsg := extractErrorMessage(string(body))
+		return nil, fmt.Errorf("invalid response creating process definition (Status %d): %s", response.StatusCode, errorMsg)
+	}
+
+	var result common.ProcessDefinition
+	if err := json.NewDecoder(response.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("failed to parse response JSON: %w", err)
+	}
+
+	return &result, nil
+}
+
+func (pc *ProcessClient) UpdateProcessDefinition(processDefinition *common.ProcessDefinition) (*common.ProcessDefinition, error) {
+	if processDefinition == nil {
+		return nil, fmt.Errorf("process definition cannot be nil")
+	}
+
+	url := "api/processDefinitions"
+	params := make(map[string]interface{})
+
+	jsonBody, err := json.Marshal(processDefinition)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal process definition: %w", err)
+	}
+
+	response, err := pc.httpRequestFactory.CreatePutRequest(url, params, jsonBody)
+	if err != nil {
+		return nil, fmt.Errorf("request error: %w", err)
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(response.Body)
+		errorMsg := extractErrorMessage(string(body))
+		return nil, fmt.Errorf("invalid response updating process definition (Status %d): %s", response.StatusCode, errorMsg)
+	}
+
+	var result common.ProcessDefinition
+	if err := json.NewDecoder(response.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("failed to parse response JSON: %w", err)
+	}
+
+	return &result, nil
+}
+
+func (pc *ProcessClient) GetProcessDefinitionLatestOrVersion(namespace, name string, version *int) (*common.ProcessDefinition, error) {
+	if namespace == "" {
+		namespace = "default"
+	}
+	if name == "" {
+		return nil, fmt.Errorf("process definition name cannot be empty")
+	}
+
+	url := fmt.Sprintf("api/processDefinitions/%s/%s", namespace, name)
+	params := make(map[string]interface{})
+
+	if version != nil {
+		params["version"] = *version
+	}
+
+	response, err := pc.httpRequestFactory.CreateGetRequest(url, params)
+	if err != nil {
+		return nil, fmt.Errorf("request error: %w", err)
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(response.Body)
+		errorMsg := extractErrorMessage(string(body))
+		return nil, fmt.Errorf("invalid response fetching process definition (Status %d): %s", response.StatusCode, errorMsg)
+	}
+
+	var result common.ProcessDefinition
+	if err := json.NewDecoder(response.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("failed to parse response JSON: %w", err)
+	}
+
+	return &result, nil
+}
+
+func (pc *ProcessClient) GetAllProcessDefinitions() ([]*common.ProcessDefinition, error) {
+	url := "api/processDefinitions"
+	params := make(map[string]interface{})
+
+	response, err := pc.httpRequestFactory.CreateGetRequest(url, params)
+	if err != nil {
+		return nil, fmt.Errorf("request error: %w", err)
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(response.Body)
+		errorMsg := extractErrorMessage(string(body))
+		return nil, fmt.Errorf("invalid response fetching process definitions (Status %d): %s", response.StatusCode, errorMsg)
+	}
+
+	var result []*common.ProcessDefinition
+	if err := json.NewDecoder(response.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("failed to parse response JSON: %w", err)
+	}
+
+	return result, nil
+}
+
+func (pc *ProcessClient) DeleteProcessDefinitions(processDefinitions []*common.ProcessDefinition, versionOnly bool) (map[string]interface{}, error) {
+	if len(processDefinitions) == 0 {
+		return nil, fmt.Errorf("process definitions cannot be empty")
+	}
+
+	url := "api/processDefinitions"
+	params := map[string]interface{}{
+		"versionOnly": versionOnly,
+	}
+
+	jsonBody, err := json.Marshal(processDefinitions)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal process definitions: %w", err)
+	}
+
+	response, err := pc.httpRequestFactory.CreateDeleteRequest(url, params, jsonBody)
+	if err != nil {
+		return nil, fmt.Errorf("request error: %w", err)
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(response.Body)
+		errorMsg := extractErrorMessage(string(body))
+		return nil, fmt.Errorf("invalid response deleting process definitions (Status %d): %s", response.StatusCode, errorMsg)
+	}
+
+	var result map[string]interface{}
+	if err := json.NewDecoder(response.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("failed to parse response JSON: %w", err)
+	}
+
+	return result, nil
+}
+
+func (pc *ProcessClient) GetProcessDefinitionVersions(namespace, name string) ([]int, error) {
+	if namespace == "" {
+		namespace = "default"
+	}
+	if name == "" {
+		return nil, fmt.Errorf("process definition name cannot be empty")
+	}
+
+	url := fmt.Sprintf("api/processDefinitions/%s/%s/versions", namespace, name)
+
+	response, err := pc.httpRequestFactory.CreateGetRequest(url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("request error: %w", err)
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(response.Body)
+		errorMsg := extractErrorMessage(string(body))
+		return nil, fmt.Errorf("invalid response fetching process definition versions (Status %d): %s", response.StatusCode, errorMsg)
+	}
+
+	var data []interface{}
+	if err := json.NewDecoder(response.Body).Decode(&data); err != nil {
+		return nil, fmt.Errorf("failed to parse response JSON: %w", err)
+	}
+
+	versions := make([]int, 0, len(data))
+	for _, v := range data {
+		switch val := v.(type) {
+		case float64:
+			versions = append(versions, int(val))
+		case int:
+			versions = append(versions, val)
+		default:
+			return nil, fmt.Errorf("unexpected version type: %T", v)
+		}
+	}
+
+	return versions, nil
+}
+
+// Helper function to extract error message from JSON response
+func extractErrorMessage(body string) string {
+	var errorObj map[string]interface{}
+	if err := json.Unmarshal([]byte(body), &errorObj); err == nil {
+		if msg, ok := errorObj["errorMessage"]; ok {
+			return fmt.Sprintf("%v", msg)
+		}
+	}
+	return body
+}
