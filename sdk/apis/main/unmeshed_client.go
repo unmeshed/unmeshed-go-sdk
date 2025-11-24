@@ -425,6 +425,11 @@ func (uc *UnmeshedClient) Start() {
 		uc.pollStates[workerId] = common.NewStepPollState(defaultMaxSize)
 	}
 
+    if !clientConfig.IsEnableResultsSubmission() {
+       log.Printf("WARN: Batch processing is disabled for results submission")
+       return nil
+    }
+
 	log.Printf("Registering %d workers", len(uc.registrationClient.GetWorkers()))
 
 	renewRegistrationTask := uc.registrationClient.RenewRegistration

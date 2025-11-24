@@ -43,7 +43,7 @@ func NewSubmitClient(httpRequestFactory *apis.HttpRequestFactory, clientConfig *
 		log.Fatal("Cannot submit results without a clientId")
 	}
     if !clientConfig.IsEnableResultsSubmission() {
-       log.Printf("Batch processing is disabled for results submission")
+       log.Printf("WARN: Batch processing is disabled for results submission")
        return nil
     }
 
