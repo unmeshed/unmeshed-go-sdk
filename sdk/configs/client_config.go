@@ -20,6 +20,7 @@ type ClientConfig struct {
 	permanentErrorKeywords          []string
 	MaxSubmitAttempts               int64
 	SubmitClientSleepIntervalMillis int64
+	EnableResultsSubmission         bool
 }
 
 func NewClientConfig() *ClientConfig {
@@ -54,6 +55,7 @@ func NewClientConfig() *ClientConfig {
 		},
 		MaxSubmitAttempts:               maxSubmitAttempts,
 		SubmitClientSleepIntervalMillis: 100,
+		EnableResultsSubmission:         true,
 	}
 }
 
@@ -84,6 +86,9 @@ func (c *ClientConfig) GetResponseSubmitBatchSize() int            { return c.Re
 func (c *ClientConfig) GetMaxSubmitAttempts() int64                { return c.MaxSubmitAttempts }
 func (c *ClientConfig) GetSubmitClientSleepIntervalMillis() int64 {
 	return c.SubmitClientSleepIntervalMillis
+}
+func (c *ClientConfig) IsEnableResultsSubmission() bool {
+	return c.EnableResultsSubmission
 }
 
 func (c *ClientConfig) SetNamespace(namespace string) {
@@ -187,4 +192,8 @@ func (c *ClientConfig) SetSubmitClientSleepIntervalMillis(sleepIntervalMillis in
 		panic("Submit client sleep interval cannot be negative")
 	}
 	c.SubmitClientSleepIntervalMillis = sleepIntervalMillis
+}
+
+func (c *ClientConfig) SetEnableResultsSubmission(enabled bool) {
+	c.EnableResultsSubmission = enabled
 }

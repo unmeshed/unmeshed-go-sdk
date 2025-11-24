@@ -238,7 +238,10 @@ func (uc *UnmeshedClient) pollForWork() ([]common.WorkRequest, error) {
 		}
 		logStr := strings.Join(logEntries, ", ")
 		executingCount := uc.executingCount.Load()
-		submitTrackerSize := int32(uc.submitClient.GetSubmitTrackerSize())
+		submitTrackerSize := int32(0)
+		if uc.submitClient != nil {
+			submitTrackerSize = int32(uc.submitClient.GetSubmitTrackerSize())
+		}
 		log.Printf("Running : %d st: %d t: %d - permits %s", executingCount, submitTrackerSize, executingCount+submitTrackerSize, logStr)
 		uc.lastPrintedRunning = now
 	}
@@ -283,7 +286,9 @@ func (uc *UnmeshedClient) handleWorkCompletion(workRequest *common.WorkRequest, 
 		workResponse = uc.workResponseBuilder.SuccessResponse(workRequest, stepResult)
 	}
 
-	uc.submitClient.Submit(workResponse, state)
+	if uc.submitClient != nil {
+		uc.submitClient.Submit(workResponse, state)
+	}
 	uc.executingCount.Add(-1)
 }
 
