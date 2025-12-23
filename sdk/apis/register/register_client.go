@@ -108,10 +108,11 @@ func (rc *RegistrationClient) GetWorkerStepNames() []common.WorkerStepName {
 	for _, worker := range rc.workers {
 		stepName := common.WorkerStepName{
 			StepQueueNameData: common.StepQueueNameData{
-				OrgId:     0,
-				Namespace: worker.GetNamespace(),
-				StepType:  "WORKER",
-				Name:      worker.GetName(),
+				OrgId:      0,
+				Namespace:  worker.GetNamespace(),
+				StepType:   "WORKER",
+				Name:       worker.GetName(),
+				ServerName: "",
 			},
 		}
 		stepNames = append(stepNames, stepName)

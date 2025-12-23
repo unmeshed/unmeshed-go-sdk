@@ -171,7 +171,7 @@ func formattedWorkerID(namespace string, name string) string {
 	return fmt.Sprintf("%s:-#-:%s", namespace, name)
 }
 
-func (uc *UnmeshedClient) pollForWork() ([]common.WorkRequest, error) {
+func (uc *UnmeshedClient) pollForWork(serverName string) ([]common.WorkRequest, error) {
 
 	registeredWorkers := uc.registrationClient.GetWorkers()
 	var workerTasks []common.StepSize
@@ -179,10 +179,11 @@ func (uc *UnmeshedClient) pollForWork() ([]common.WorkRequest, error) {
 
 	for _, worker := range registeredWorkers {
 		stepQueueNameData := common.StepQueueNameData{
-			OrgId:     0,
-			Namespace: worker.GetNamespace(),
-			StepType:  "WORKER",
-			Name:      worker.GetName(),
+			OrgId:       0,
+			Namespace:   worker.GetNamespace(),
+			StepType:    "WORKER",
+			Name:        worker.GetName(),
+			ServerName:  serverName,
 		}
 		workerId := formattedWorkerID(worker.GetNamespace(), worker.GetName())
 		state, exists := uc.pollStates[workerId]
@@ -340,9 +341,13 @@ func (uc *UnmeshedClient) startAsyncTaskProcessing() {
 			lastLogTime    = time.Now()
 			pollRetryCount = 1
 		)
+        serverName := os.Getenv("UNMESHED_SERVER_INSTANCE_NAME")
+        if serverName == "" {
+         	serverName = Resolve()
+        }
 		for !uc.stopPolling.Load() {
 			pollInterval := time.Duration(uc.ClientConfig.GetDelayMillis()) * time.Millisecond
-			workRequests, err := uc.pollForWork()
+			workRequests, err := uc.pollForWork(serverName)
 
 			if err != nil {
 				backoff := minBackoff << (pollRetryCount - 1)
@@ -571,4 +576,56 @@ func (uc *UnmeshedClient) Rerun(processID int64, version int) (*common.ProcessDa
 
 func (uc *UnmeshedClient) DoneChan() <-chan struct{} {
 	return uc.done
+}
+
+func Resolve() string {
+	return firstNonEmpty(
+		// 1️⃣ Kubernetes
+		os.Getenv("HOSTNAME"),
+		os.Getenv("POD_NAME"),
+
+		// 2️⃣ Azure
+		os.Getenv("WEBSITE_INSTANCE_ID"),   // Azure App Service
+		os.Getenv("CONTAINER_APP_NAME"),    // Azure Container Apps
+		os.Getenv("COMPUTERNAME"),          // Azure VMs (Windows)
+		os.Getenv("AKS_NODE_NAME"),         // Azure Kubernetes Service
+
+		// 3️⃣ AWS
+		os.Getenv("EC2_INSTANCE_ID"),
+		os.Getenv("AWS_EXECUTION_ENV"),           // Lambda, ECS
+		os.Getenv("ECS_CONTAINER_METADATA_URI"),  // ECS
+		os.Getenv("AWS_LAMBDA_FUNCTION_NAME"),    // Lambda
+
+		// 4️⃣ GCP
+		os.Getenv("GAE_INSTANCE"),      // App Engine
+		os.Getenv("K_SERVICE"),         // Cloud Run
+		os.Getenv("K_REVISION"),        // Cloud Run revision
+		os.Getenv("GCE_INSTANCE_NAME"), // Compute Engine
+
+		// 5️⃣ Other Cloud Providers
+		os.Getenv("HEROKU_DYNO_ID"),      // Heroku
+		os.Getenv("FLY_ALLOC_ID"),        // Fly.io
+		os.Getenv("RENDER_INSTANCE_ID"),  // Render
+		os.Getenv("RAILWAY_REPLICA_ID"),  // Railway
+
+		// 6️⃣ Fallback to OS hostname
+		getHostName(),
+	)
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, v := range values {
+		if v != "" && strings.TrimSpace(v) != "" {
+			return v
+		}
+	}
+	return ""
+}
+
+func getHostName() string {
+	hostname, err := os.Hostname()
+	if err != nil {
+		return ""
+	}
+	return hostname
 }
