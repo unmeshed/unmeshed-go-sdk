@@ -125,9 +125,10 @@ func NewUnmeshedClient(
 		return nil, fmt.Errorf("cannot initialize without a valid clientId and token")
 	}
 
+    unmeshedHostName := GetHostName()
 	httpClientFactory := apis.NewHttpClientFactory(clientConfig)
 	httpRequestFactory := apis.NewHttpRequestFactory(clientConfig)
-	pollerClient := poller.NewPollerClient(clientConfig, httpClientFactory, httpRequestFactory)
+	pollerClient := poller.NewPollerClient(clientConfig, &unmeshedHostName, httpClientFactory, httpRequestFactory)
 	submitClient := submit.NewSubmitClient(httpRequestFactory, clientConfig)
 	processClient := process.NewProcessClient(httpClientFactory, httpRequestFactory, clientConfig)
 
@@ -171,7 +172,7 @@ func formattedWorkerID(namespace string, name string) string {
 	return fmt.Sprintf("%s:-#-:%s", namespace, name)
 }
 
-func (uc *UnmeshedClient) pollForWork(serverName string) ([]common.WorkRequest, error) {
+func (uc *UnmeshedClient) pollForWork() ([]common.WorkRequest, error) {
 
 	registeredWorkers := uc.registrationClient.GetWorkers()
 	var workerTasks []common.StepSize
@@ -183,7 +184,6 @@ func (uc *UnmeshedClient) pollForWork(serverName string) ([]common.WorkRequest, 
 			Namespace:   worker.GetNamespace(),
 			StepType:    "WORKER",
 			Name:        worker.GetName(),
-			ServerName:  serverName,
 		}
 		workerId := formattedWorkerID(worker.GetNamespace(), worker.GetName())
 		state, exists := uc.pollStates[workerId]
@@ -341,13 +341,10 @@ func (uc *UnmeshedClient) startAsyncTaskProcessing() {
 			lastLogTime    = time.Now()
 			pollRetryCount = 1
 		)
-        serverName := os.Getenv("UNMESHED_SERVER_INSTANCE_NAME")
-        if serverName == "" {
-         	serverName = Resolve()
-        }
+
 		for !uc.stopPolling.Load() {
 			pollInterval := time.Duration(uc.ClientConfig.GetDelayMillis()) * time.Millisecond
-			workRequests, err := uc.pollForWork(serverName)
+			workRequests, err := uc.pollForWork()
 
 			if err != nil {
 				backoff := minBackoff << (pollRetryCount - 1)
@@ -578,54 +575,29 @@ func (uc *UnmeshedClient) DoneChan() <-chan struct{} {
 	return uc.done
 }
 
-func Resolve() string {
-	return firstNonEmpty(
-		// 1️⃣ Kubernetes
-		os.Getenv("HOSTNAME"),
-		os.Getenv("POD_NAME"),
+func GetHostName() string {
+    unmeshedHostName := os.Getenv("UNMESHED_HOST_NAME")
+    if unmeshedHostName != "" && strings.TrimSpace(unmeshedHostName) != "" {
+        return strings.TrimSpace(unmeshedHostName)
+    }
 
-		// 2️⃣ Azure
-		os.Getenv("WEBSITE_INSTANCE_ID"),   // Azure App Service
-		os.Getenv("CONTAINER_APP_NAME"),    // Azure Container Apps
-		os.Getenv("COMPUTERNAME"),          // Azure VMs (Windows)
-		os.Getenv("AKS_NODE_NAME"),         // Azure Kubernetes Service
+    // Linux, macOS
+    hostname := os.Getenv("HOSTNAME")
+    if hostname != "" && strings.TrimSpace(hostname) != "" {
+        return strings.TrimSpace(hostname)
+    }
 
-		// 3️⃣ AWS
-		os.Getenv("EC2_INSTANCE_ID"),
-		os.Getenv("AWS_EXECUTION_ENV"),           // Lambda, ECS
-		os.Getenv("ECS_CONTAINER_METADATA_URI"),  // ECS
-		os.Getenv("AWS_LAMBDA_FUNCTION_NAME"),    // Lambda
+    // Windows
+    hostname = os.Getenv("COMPUTERNAME")
+    if hostname != "" && strings.TrimSpace(hostname) != "" {
+        return strings.TrimSpace(hostname)
+    }
 
-		// 4️⃣ GCP
-		os.Getenv("GAE_INSTANCE"),      // App Engine
-		os.Getenv("K_SERVICE"),         // Cloud Run
-		os.Getenv("K_REVISION"),        // Cloud Run revision
-		os.Getenv("GCE_INSTANCE_NAME"), // Compute Engine
+    // Fallback to os.Hostname()
+    hostname, err := os.Hostname()
+    if err == nil && hostname != "" && strings.TrimSpace(hostname) != "" {
+        return strings.TrimSpace(hostname)
+    }
 
-		// 5️⃣ Other Cloud Providers
-		os.Getenv("HEROKU_DYNO_ID"),      // Heroku
-		os.Getenv("FLY_ALLOC_ID"),        // Fly.io
-		os.Getenv("RENDER_INSTANCE_ID"),  // Render
-		os.Getenv("RAILWAY_REPLICA_ID"),  // Railway
-
-		// 6️⃣ Fallback to OS hostname
-		getHostName(),
-	)
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, v := range values {
-		if v != "" && strings.TrimSpace(v) != "" {
-			return v
-		}
-	}
-	return ""
-}
-
-func getHostName() string {
-	hostname, err := os.Hostname()
-	if err != nil {
-		return ""
-	}
-	return hostname
+    return "-"
 }

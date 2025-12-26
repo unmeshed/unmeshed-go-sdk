@@ -14,15 +14,17 @@ import (
 
 type PollerClient struct {
 	clientConfig       *configs.ClientConfig
+	unmeshedHostName   *string
 	httpClient         *http.Client
 	httpRequestFactory *apis.HttpRequestFactory
 	CLIENTS_POLL_URL   string
 }
 
-func NewPollerClient(clientConfig *configs.ClientConfig, httpClientFactory *apis.HttpClientFactory, httpRequestFactory *apis.HttpRequestFactory) *PollerClient {
+func NewPollerClient(clientConfig *configs.ClientConfig, unmeshedHostName *string, httpClientFactory *apis.HttpClientFactory, httpRequestFactory *apis.HttpRequestFactory) *PollerClient {
 	clientPollURL := "api/clients/poll"
 	return &PollerClient{
 		clientConfig:       clientConfig,
+		unmeshedHostName:   unmeshedHostName,
 		httpClient:         httpClientFactory.Create(),
 		httpRequestFactory: httpRequestFactory,
 		CLIENTS_POLL_URL:   clientPollURL,
@@ -46,7 +48,12 @@ func (pc *PollerClient) Poll(stepSizes []common.StepSize) ([]common.WorkRequest,
 
 	clientPollUrl := pc.CLIENTS_POLL_URL
 
-	response, err := pc.httpRequestFactory.CreatePostRequest(clientPollUrl, params, jsonData)
+    pollRequestHeaders := map[string]string{}
+
+    if pc.unmeshedHostName != nil && *pc.unmeshedHostName != "" {
+        pollRequestHeaders["UNMESHED_HOST_NAME"] = *pc.unmeshedHostName
+    }
+	response, err := pc.httpRequestFactory.CreatePostRequestWithHeaders(clientPollUrl, params, pollRequestHeaders, jsonData)
 	if err != nil {
 		log.Printf("Error making POST request: %v", err)
 		return nil, fmt.Errorf("failed to make POST request: %w", err)
