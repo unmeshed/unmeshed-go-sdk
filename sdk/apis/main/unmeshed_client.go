@@ -125,9 +125,10 @@ func NewUnmeshedClient(
 		return nil, fmt.Errorf("cannot initialize without a valid clientId and token")
 	}
 
+    unmeshedHostName := GetHostName()
 	httpClientFactory := apis.NewHttpClientFactory(clientConfig)
 	httpRequestFactory := apis.NewHttpRequestFactory(clientConfig)
-	pollerClient := poller.NewPollerClient(clientConfig, httpClientFactory, httpRequestFactory)
+	pollerClient := poller.NewPollerClient(clientConfig, &unmeshedHostName, httpClientFactory, httpRequestFactory)
 	submitClient := submit.NewSubmitClient(httpRequestFactory, clientConfig)
 	processClient := process.NewProcessClient(httpClientFactory, httpRequestFactory, clientConfig)
 
@@ -179,10 +180,10 @@ func (uc *UnmeshedClient) pollForWork() ([]common.WorkRequest, error) {
 
 	for _, worker := range registeredWorkers {
 		stepQueueNameData := common.StepQueueNameData{
-			OrgId:     0,
-			Namespace: worker.GetNamespace(),
-			StepType:  "WORKER",
-			Name:      worker.GetName(),
+			OrgId:       0,
+			Namespace:   worker.GetNamespace(),
+			StepType:    "WORKER",
+			Name:        worker.GetName(),
 		}
 		workerId := formattedWorkerID(worker.GetNamespace(), worker.GetName())
 		state, exists := uc.pollStates[workerId]
@@ -340,6 +341,7 @@ func (uc *UnmeshedClient) startAsyncTaskProcessing() {
 			lastLogTime    = time.Now()
 			pollRetryCount = 1
 		)
+
 		for !uc.stopPolling.Load() {
 			pollInterval := time.Duration(uc.ClientConfig.GetDelayMillis()) * time.Millisecond
 			workRequests, err := uc.pollForWork()
@@ -571,4 +573,31 @@ func (uc *UnmeshedClient) Rerun(processID int64, version int) (*common.ProcessDa
 
 func (uc *UnmeshedClient) DoneChan() <-chan struct{} {
 	return uc.done
+}
+
+func GetHostName() string {
+    unmeshedHostName := os.Getenv("UNMESHED_HOST_NAME")
+    if unmeshedHostName != "" && strings.TrimSpace(unmeshedHostName) != "" {
+        return strings.TrimSpace(unmeshedHostName)
+    }
+
+    // Linux, macOS
+    hostname := os.Getenv("HOSTNAME")
+    if hostname != "" && strings.TrimSpace(hostname) != "" {
+        return strings.TrimSpace(hostname)
+    }
+
+    // Windows
+    hostname = os.Getenv("COMPUTERNAME")
+    if hostname != "" && strings.TrimSpace(hostname) != "" {
+        return strings.TrimSpace(hostname)
+    }
+
+    // Fallback to os.Hostname()
+    hostname, err := os.Hostname()
+    if err == nil && hostname != "" && strings.TrimSpace(hostname) != "" {
+        return strings.TrimSpace(hostname)
+    }
+
+    return "-"
 }

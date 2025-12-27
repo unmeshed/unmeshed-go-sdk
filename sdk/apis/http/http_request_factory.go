@@ -152,6 +152,23 @@ func (factory *HttpRequestFactory) CreatePostRequest(path string, params map[str
 	return factory.client.Do(req)
 }
 
+func (factory *HttpRequestFactory) CreatePostRequestWithHeaders(path string, params map[string]interface{}, headers map[string]string, body []byte) (*http.Response, error) {
+	uri := factory.buildURI(path, params)
+	requestBody := bytes.NewReader(body)
+	req, err := http.NewRequest("POST", uri, requestBody)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", "application/json")
+	req.Header.Add("Authorization", factory.bearerValue)
+
+	for k, v := range headers {
+       req.Header.Set(k, v)
+    }
+	return factory.client.Do(req)
+}
+
 func (factory *HttpRequestFactory) CreatePutRequest(path string, params map[string]interface{}, body []byte) (*http.Response, error) {
 	uri := factory.buildURI(path, params)
 	requestBody := bytes.NewReader(body)
