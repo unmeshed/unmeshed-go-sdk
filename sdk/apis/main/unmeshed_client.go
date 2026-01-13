@@ -126,6 +126,7 @@ func NewUnmeshedClient(
 	}
 
     unmeshedHostName := GetHostName()
+    log.Printf("Unmeshed Host Name: %v", unmeshedHostName)
 	httpClientFactory := apis.NewHttpClientFactory(clientConfig)
 	httpRequestFactory := apis.NewHttpRequestFactory(clientConfig)
 	pollerClient := poller.NewPollerClient(clientConfig, &unmeshedHostName, httpClientFactory, httpRequestFactory)
