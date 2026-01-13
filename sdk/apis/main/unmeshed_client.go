@@ -126,7 +126,6 @@ func NewUnmeshedClient(
 	}
 
     unmeshedHostName := GetHostName()
-    log.Printf("Unmeshed Host Name: %v", unmeshedHostName)
 	httpClientFactory := apis.NewHttpClientFactory(clientConfig)
 	httpRequestFactory := apis.NewHttpRequestFactory(clientConfig)
 	pollerClient := poller.NewPollerClient(clientConfig, &unmeshedHostName, httpClientFactory, httpRequestFactory)
@@ -441,7 +440,8 @@ func (uc *UnmeshedClient) Start() {
 		log.Printf("Error renewing registration: %v", err)
 	}
 
-	log.Printf("Unmeshed Go SDK started")
+	unmeshedHostName := GetHostName()
+	log.Printf("Unmeshed Go SDK started on server : %v", unmeshedHostName)
 	go uc.startAsyncTaskProcessing()
 	<-uc.done
 }
