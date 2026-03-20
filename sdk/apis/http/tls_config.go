@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -36,10 +37,11 @@ func buildTLSConfig(clientConfig *configs.ClientConfig) *tls.Config {
 	if caCertDirectory != nil && strings.TrimSpace(*caCertDirectory) != "" {
 		rootCAs, err := loadRootCAsFromDirectory(strings.TrimSpace(*caCertDirectory))
 		if err != nil {
-			panic(err)
+			log.Printf("INFO: skipping custom CA certificate directory: %v", err)
+		} else {
+			tlsConfig.RootCAs = rootCAs
+			configured = true
 		}
-		tlsConfig.RootCAs = rootCAs
-		configured = true
 	}
 
 	if !configured {
@@ -78,11 +80,13 @@ func loadRootCAsFromDirectory(directoryPath string) (*x509.CertPool, error) {
 		certPath := filepath.Join(directoryPath, entry.Name())
 		certPEM, err := os.ReadFile(certPath)
 		if err != nil {
-			return nil, fmt.Errorf("failed to read CA certificate %q: %w", certPath, err)
+			log.Printf("WARN: failed to read CA certificate %q: %v", certPath, err)
+			continue
 		}
 
 		if ok := rootCAs.AppendCertsFromPEM(certPEM); !ok {
-			return nil, fmt.Errorf("failed to append CA certificate %q", certPath)
+			log.Printf("WARN: failed to append CA certificate %q", certPath)
+			continue
 		}
 		loadedCerts++
 	}

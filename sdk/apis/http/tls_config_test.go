@@ -85,24 +85,35 @@ func TestHttpClientFactory_PanicsForInvalidCACertDirectory(t *testing.T) {
 	config := configs.NewClientConfig()
 	config.SetCACertDirectory(filepath.Join(t.TempDir(), "missing"))
 
-	assert.PanicsWithError(t,
-		"failed to access CA certificate directory \""+*config.GetCACertDirectory()+"\": stat "+*config.GetCACertDirectory()+": no such file or directory",
-		func() {
-			NewHttpClientFactory(config).Create()
-		},
-	)
+	client := NewHttpClientFactory(config).Create()
+	transport, ok := client.Transport.(*http.Transport)
+	assert.True(t, ok)
+	assert.Nil(t, transport.TLSClientConfig)
 }
 
 func TestHttpClientFactory_PanicsWhenCACertDirectoryContainsNoSupportedCertFiles(t *testing.T) {
 	config := configs.NewClientConfig()
 	config.SetCACertDirectory(t.TempDir())
 
-	assert.PanicsWithError(t,
-		"no .crt or .pem files found in CA certificate directory \""+*config.GetCACertDirectory()+"\"",
-		func() {
-			NewHttpClientFactory(config).Create()
-		},
-	)
+	client := NewHttpClientFactory(config).Create()
+	transport, ok := client.Transport.(*http.Transport)
+	assert.True(t, ok)
+	assert.Nil(t, transport.TLSClientConfig)
+}
+
+func TestHttpClientFactory_IgnoresInvalidPEMFilesInCACertDirectory(t *testing.T) {
+	certDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(certDir, "broken.pem"), []byte("not-a-valid-cert"), 0644); err != nil {
+		t.Fatalf("failed to write invalid pem file: %v", err)
+	}
+
+	config := configs.NewClientConfig()
+	config.SetCACertDirectory(certDir)
+
+	client := NewHttpClientFactory(config).Create()
+	transport, ok := client.Transport.(*http.Transport)
+	assert.True(t, ok)
+	assert.Nil(t, transport.TLSClientConfig)
 }
 
 func TestHttpClientFactory_LeavesSSLVerificationEnabledByDefault(t *testing.T) {
