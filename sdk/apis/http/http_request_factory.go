@@ -2,11 +2,9 @@ package apis
 
 import (
 	"bytes"
-	"crypto/tls"
 	"fmt"
 	"net/http"
 	"net/url"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -41,9 +39,7 @@ func NewHttpRequestFactory(clientConfig *configs.ClientConfig) *HttpRequestFacto
 		MaxConnsPerHost:     10,               // Maximum number of connections per host (pool_maxsize)
 		IdleConnTimeout:     90 * time.Second, // How long an idle connection is kept in the pool
 		DisableCompression:  false,            // Enable compression
-	}
-	if strings.EqualFold(strings.TrimSpace(os.Getenv("DISABLE_SSL_VERIFICATION")), "true") {
-		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+		TLSClientConfig:     buildTLSConfig(clientConfig),
 	}
 
 	client := &http.Client{
@@ -169,8 +165,8 @@ func (factory *HttpRequestFactory) CreatePostRequestWithHeaders(path string, par
 	req.Header.Add("Authorization", factory.bearerValue)
 
 	for k, v := range headers {
-       req.Header.Set(k, v)
-    }
+		req.Header.Set(k, v)
+	}
 	return factory.client.Do(req)
 }
 

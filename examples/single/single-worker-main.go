@@ -245,9 +245,11 @@ func main() {
 	clientConfig.SetClientID("<< Client Id >>")
 	clientConfig.SetAuthToken("<< Auth Token>>")
 	clientConfig.SetDelayMillis(40)
-	clientConfig.SetPort(8080)
+	clientConfig.SetPort(8443)
 	clientConfig.SetWorkRequestBatchSize(500)
-	clientConfig.SetBaseURL("http://localhost")
+	clientConfig.SetBaseURL("https://localhost:8443/")
+	clientConfig.SetDisableSSLVerification(true)    // optional for local/self-signed TLS setups
+	clientConfig.SetCACertDirectory("/localcerts/") // optional directory containing custom .crt or .pem files
 	clientConfig.SetStepTimeoutMillis(36000000)
 	clientConfig.SetMaxWorkers(100)
 
