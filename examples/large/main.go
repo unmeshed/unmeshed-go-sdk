@@ -183,6 +183,8 @@ func main() {
 	clientConfig.SetPort(8080)
 	clientConfig.SetWorkRequestBatchSize(200)
 	clientConfig.SetBaseURL("http://localhost")
+	// clientConfig.SetDisableSSLVerification(true) // optional for local/self-signed TLS setups
+	// clientConfig.SetCACertDirectory("/path/to/certs") // optional directory containing custom .crt files
 	clientConfig.SetStepTimeoutMillis(36000000)
 	clientConfig.SetMaxWorkers(20)
 	var err error

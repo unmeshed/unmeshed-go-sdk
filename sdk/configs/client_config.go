@@ -7,6 +7,8 @@ type ClientConfig struct {
 	BaseURL                         string
 	Port                            int
 	ConnectionTimeoutSecs           int64
+	DisableSSLVerification          bool
+	CACertDirectory                 *string
 	SubmitClientPollTimeoutSeconds  float64
 	StepTimeoutMillis               int64
 	DelayMillis                     int64
@@ -71,6 +73,8 @@ func (c *ClientConfig) GetNamespace() string            { return c.Namespace }
 func (c *ClientConfig) GetBaseURL() string              { return c.BaseURL }
 func (c *ClientConfig) GetPort() int                    { return c.Port }
 func (c *ClientConfig) GetConnectionTimeoutSecs() int64 { return c.ConnectionTimeoutSecs }
+func (c *ClientConfig) IsDisableSSLVerification() bool  { return c.DisableSSLVerification }
+func (c *ClientConfig) GetCACertDirectory() *string     { return c.CACertDirectory }
 func (c *ClientConfig) GetSubmitClientPollTimeoutSeconds() float64 {
 	return c.SubmitClientPollTimeoutSeconds
 }
@@ -117,6 +121,18 @@ func (c *ClientConfig) SetConnectionTimeoutSecs(connectionTimeoutSecs int64) {
 		panic("Connection timeout must be a positive integer")
 	}
 	c.ConnectionTimeoutSecs = connectionTimeoutSecs
+}
+
+func (c *ClientConfig) SetDisableSSLVerification(disableSSLVerification bool) {
+	c.DisableSSLVerification = disableSSLVerification
+}
+
+func (c *ClientConfig) SetCACertDirectory(caCertDirectory string) {
+	if caCertDirectory == "" {
+		c.CACertDirectory = nil
+		return
+	}
+	c.CACertDirectory = &caCertDirectory
 }
 
 func (c *ClientConfig) SetSubmitClientPollTimeoutSeconds(submitClientPollTimeoutSecs float64) {

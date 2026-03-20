@@ -1,10 +1,7 @@
 package apis
 
 import (
-	"crypto/tls"
 	"net/http"
-	"os"
-	"strings"
 	"time"
 
 	"github.com/unmeshed/unmeshed-go-sdk/sdk/configs"
@@ -22,10 +19,7 @@ func (factory *HttpClientFactory) Create() *http.Client {
 	timeoutSecs := factory.clientConfig.ConnectionTimeoutSecs
 
 	timeout := time.Duration(timeoutSecs) * time.Second
-	transport := &http.Transport{}
-	if strings.EqualFold(strings.TrimSpace(os.Getenv("DISABLE_SSL_VERIFICATION")), "true") {
-		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
-	}
+	transport := &http.Transport{TLSClientConfig: buildTLSConfig(factory.clientConfig)}
 	client := &http.Client{
 		Transport: transport,
 		Timeout:   timeout,
