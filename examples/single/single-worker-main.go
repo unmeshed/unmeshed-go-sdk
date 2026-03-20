@@ -242,8 +242,8 @@ func main() {
 	worker := apis2.NewWorker(TestWorker, "test-worker")
 
 	clientConfig := configs.NewClientConfig()
-	clientConfig.SetClientID("312001ad-8992-430c-8a4f-515c528391e1")
-	clientConfig.SetAuthToken("i3gHuLpv3CkBlQN0SSU9")
+	clientConfig.SetClientID("<< Client Id >>")
+	clientConfig.SetAuthToken("<< Auth Token>>")
 	clientConfig.SetDelayMillis(40)
 	clientConfig.SetPort(8443)
 	clientConfig.SetWorkRequestBatchSize(500)
