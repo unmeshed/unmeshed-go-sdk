@@ -57,7 +57,7 @@ func main() {
     cfg.SetPort(8080)
     cfg.SetBaseURL("http://localhost")      // set your URL
     cfg.SetDisableSSLVerification(true)     // optional, can also be controlled by UNMESHED_AGENT_DISABLE_SSL_VERIFICATION
-    cfg.SetCACertDirectory("/path/to/certs") // optional directory containing custom .crt files
+    cfg.SetCACertDirectory("/path/to/certs") // optional directory containing custom .crt or .pem files
 
     unmeshedClient, err := apis.NewUnmeshedClient(cfg)
     if err != nil {
@@ -89,7 +89,7 @@ cfg.SetAuthToken("your-auth-token")
 cfg.SetPort(8080)
 cfg.SetBaseURL("http://localhost")      // set your URL
 cfg.SetDisableSSLVerification(true)     // optional
-cfg.SetCACertDirectory("/path/to/certs") // optional directory containing custom .crt files
+cfg.SetCACertDirectory("/path/to/certs") // optional directory containing custom .crt or .pem files
 cfg.SetWorkRequestBatchSize(50)
 cfg.SetDelayMillis(100) //Delay between poll
 cfg.SetSubmitClientSleepIntervalMillis(100) // Delay between submit attempts
@@ -415,7 +415,7 @@ func main() {
     cfg.SetPort(8080)
     cfg.SetBaseURL("http://localhost")
     cfg.SetDisableSSLVerification(true) // optional
-    cfg.SetCACertDirectory("/path/to/certs") // optional directory containing custom .crt files
+    cfg.SetCACertDirectory("/path/to/certs") // optional directory containing custom .crt or .pem files
     cfg.SetWorkRequestBatchSize(50)
     cfg.SetDelayMillis(100) //Delay between poll
     cfg.SetStepTimeoutMillis(36000000)

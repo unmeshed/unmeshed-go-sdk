@@ -242,14 +242,14 @@ func main() {
 	worker := apis2.NewWorker(TestWorker, "test-worker")
 
 	clientConfig := configs.NewClientConfig()
-	clientConfig.SetClientID("<< Client Id >>")
-	clientConfig.SetAuthToken("<< Auth Token>>")
+	clientConfig.SetClientID("312001ad-8992-430c-8a4f-515c528391e1")
+	clientConfig.SetAuthToken("i3gHuLpv3CkBlQN0SSU9")
 	clientConfig.SetDelayMillis(40)
-	clientConfig.SetPort(8080)
+	clientConfig.SetPort(8443)
 	clientConfig.SetWorkRequestBatchSize(500)
-	clientConfig.SetBaseURL("http://localhost")
-	// clientConfig.SetDisableSSLVerification(true) // optional for local/self-signed TLS setups
-	// clientConfig.SetCACertDirectory("/path/to/certs") // optional directory containing custom .crt files
+	clientConfig.SetBaseURL("https://localhost:8443/")
+	clientConfig.SetDisableSSLVerification(true)                              // optional for local/self-signed TLS setups
+	clientConfig.SetCACertDirectory("/Users/boneysekh/Downloads/localcerts/") // optional directory containing custom .crt or .pem files
 	clientConfig.SetStepTimeoutMillis(36000000)
 	clientConfig.SetMaxWorkers(100)
 

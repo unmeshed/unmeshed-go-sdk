@@ -70,7 +70,8 @@ func loadRootCAsFromDirectory(directoryPath string) (*x509.CertPool, error) {
 
 	loadedCerts := 0
 	for _, entry := range entries {
-		if entry.IsDir() || !strings.EqualFold(filepath.Ext(entry.Name()), ".crt") {
+		extension := strings.ToLower(filepath.Ext(entry.Name()))
+		if entry.IsDir() || (extension != ".crt" && extension != ".pem") {
 			continue
 		}
 
@@ -87,7 +88,7 @@ func loadRootCAsFromDirectory(directoryPath string) (*x509.CertPool, error) {
 	}
 
 	if loadedCerts == 0 {
-		return nil, fmt.Errorf("no .crt files found in CA certificate directory %q", directoryPath)
+		return nil, fmt.Errorf("no .crt or .pem files found in CA certificate directory %q", directoryPath)
 	}
 
 	return rootCAs, nil

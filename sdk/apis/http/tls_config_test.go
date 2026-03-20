@@ -46,7 +46,7 @@ func TestHttpRequestFactory_UsesEnvDisableSSLVerificationFallback(t *testing.T) 
 
 func TestHttpClientFactory_LoadsRootCAsFromConfiguredDirectory(t *testing.T) {
 	certDir := t.TempDir()
-	cert := writeTestCertificate(t, filepath.Join(certDir, "server.crt"))
+	cert := writeTestCertificate(t, filepath.Join(certDir, "server.pem"))
 	if err := os.WriteFile(filepath.Join(certDir, "ignore.txt"), []byte("not-a-cert"), 0644); err != nil {
 		t.Fatalf("failed to write non-cert test file: %v", err)
 	}
@@ -93,12 +93,12 @@ func TestHttpClientFactory_PanicsForInvalidCACertDirectory(t *testing.T) {
 	)
 }
 
-func TestHttpClientFactory_PanicsWhenCACertDirectoryContainsNoCRTFiles(t *testing.T) {
+func TestHttpClientFactory_PanicsWhenCACertDirectoryContainsNoSupportedCertFiles(t *testing.T) {
 	config := configs.NewClientConfig()
 	config.SetCACertDirectory(t.TempDir())
 
 	assert.PanicsWithError(t,
-		"no .crt files found in CA certificate directory \""+*config.GetCACertDirectory()+"\"",
+		"no .crt or .pem files found in CA certificate directory \""+*config.GetCACertDirectory()+"\"",
 		func() {
 			NewHttpClientFactory(config).Create()
 		},
