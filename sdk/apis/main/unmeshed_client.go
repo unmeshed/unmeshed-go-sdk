@@ -307,7 +307,7 @@ func (uc *UnmeshedClient) releaseUnusedPermits(workerReceivedCount, workerReques
 func (uc *UnmeshedClient) startAsyncTaskProcessing() {
 	const logInterval = 60 * time.Second
 	const minBackoff = 100 * time.Millisecond
-	const maxBackoff = 20 * time.Second
+	const maxBackoff = 30 * time.Second
 
 	// Determine worker pool size
 	workerCount := int(uc.ClientConfig.GetMaxWorkers())
