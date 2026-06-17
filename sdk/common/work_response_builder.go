@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log"
+	"strings"
 	"time"
 )
 
@@ -88,6 +89,8 @@ func (b *WorkResponseBuilder) FailResponse(workRequest *WorkRequest, context err
 
 	if json.Unmarshal([]byte(errMsg), &innerError) != nil {
 		innerError = errMsg
+	} else {
+		b.makeErrorMessagePresentable(innerError)
 	}
 
 	output := map[string]interface{}{
@@ -107,6 +110,58 @@ func (b *WorkResponseBuilder) FailResponse(workRequest *WorkRequest, context err
 	workResponse.SetStatus(StepStatusFailed)
 
 	return workResponse
+}
+
+func (b *WorkResponseBuilder) makeErrorMessagePresentable(innerError interface{}) {
+	errorMap, ok := innerError.(map[string]interface{})
+	if !ok {
+		return
+	}
+
+	output, ok := errorMap["output"].(string)
+	if !ok || strings.TrimSpace(output) == "" {
+		return
+	}
+
+	errorMap["message"] = formatOutputSummary(output)
+}
+
+func formatOutputSummary(output string) string {
+	lines := strings.Split(strings.ReplaceAll(output, "\r\n", "\n"), "\n")
+	firstLine := ""
+	lastLine := ""
+
+	for _, line := range lines {
+		if strings.TrimSpace(line) != "" {
+			firstLine = line
+			break
+		}
+	}
+
+	for i := len(lines) - 1; i >= 0; i-- {
+		if strings.TrimSpace(lines[i]) != "" {
+			lastLine = lines[i]
+			break
+		}
+	}
+
+	return firstNRunes(firstLine, 50) + "\n" + lastNRunes(lastLine, 100)
+}
+
+func firstNRunes(value string, limit int) string {
+	runes := []rune(value)
+	if len(runes) <= limit {
+		return value
+	}
+	return string(runes[:limit])
+}
+
+func lastNRunes(value string, limit int) string {
+	runes := []rune(value)
+	if len(runes) <= limit {
+		return value
+	}
+	return string(runes[len(runes)-limit:])
 }
 
 func (b *WorkResponseBuilder) tryPeelIrrelevantExceptions(context error) error {
