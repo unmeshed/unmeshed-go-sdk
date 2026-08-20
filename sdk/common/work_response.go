@@ -6,6 +6,7 @@ type WorkResponse struct {
 	ProcessID              int64                  `json:"processId,omitempty"`
 	StepID                 int64                  `json:"stepId,omitempty"`
 	StepExecutionID        int64                  `json:"stepExecutionId"`
+	ShardInstanceID        *int                   `json:"shardInstanceId,omitempty"`
 	Output                 map[string]interface{} `json:"output,omitempty"`
 	Status                 StepStatus             `json:"status,omitempty"`
 	RescheduleAfterSeconds int                    `json:"rescheduleAfterSeconds"`
@@ -40,6 +41,14 @@ func (wr *WorkResponse) GetStepExecutionID() int64 {
 
 func (wr *WorkResponse) SetStepExecutionID(stepExecutionID int64) {
 	wr.StepExecutionID = stepExecutionID
+}
+
+func (wr *WorkResponse) GetShardInstanceID() *int {
+	return wr.ShardInstanceID
+}
+
+func (wr *WorkResponse) SetShardInstanceID(shardInstanceID *int) {
+	wr.ShardInstanceID = shardInstanceID
 }
 
 func (wr *WorkResponse) GetOutput() map[string]interface{} {

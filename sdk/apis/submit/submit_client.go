@@ -19,6 +19,7 @@ import (
 
 const (
 	CLIENTS_RESULTS_URL = "api/clients/bulkResults"
+	SHARD_ID_HEADER     = "X-SHARD-ID"
 	MAX_RETRIES         = 3
 	INITIAL_BACKOFF     = 100 * time.Millisecond
 	MAX_BACKOFF         = 5 * time.Second
@@ -119,23 +120,56 @@ func (c *SubmitClient) processQueue(queue *common.Queue, queueType string) {
 			continue
 		}
 
-		if err := c.processBatch(batch); err != nil {
-			log.Printf("Bulk request failed for batch. Re-queuing all items. Error: %v", err)
-			time.Sleep(3 * time.Second)
-			for _, workResponse := range batch {
-				c.handleAllRequestFailure(workResponse, err.Error())
-			}
-		}
+		c.processBatchByShard(batch)
 	}
 }
 
 func (c *SubmitClient) processBatch(batch []*common.WorkResponse) error {
+	return c.processShardBatch(batch, nil)
+}
+
+func (c *SubmitClient) processBatchByShard(batch []*common.WorkResponse) {
+	responsesByShard := make(map[int][]*common.WorkResponse)
+	responsesWithoutShard := make([]*common.WorkResponse, 0)
+
+	for _, workResponse := range batch {
+		shardInstanceID := workResponse.GetShardInstanceID()
+		if shardInstanceID == nil {
+			responsesWithoutShard = append(responsesWithoutShard, workResponse)
+			continue
+		}
+		responsesByShard[*shardInstanceID] = append(responsesByShard[*shardInstanceID], workResponse)
+	}
+
+	for shardInstanceID, shardBatch := range responsesByShard {
+		id := shardInstanceID
+		if err := c.processShardBatch(shardBatch, &id); err != nil {
+			c.handleBatchFailure(shardBatch, &id, err)
+		}
+	}
+
+	if len(responsesWithoutShard) > 0 {
+		if err := c.processShardBatch(responsesWithoutShard, nil); err != nil {
+			c.handleBatchFailure(responsesWithoutShard, nil, err)
+		}
+	}
+}
+
+func (c *SubmitClient) processShardBatch(batch []*common.WorkResponse, shardInstanceID *int) error {
 	bodyBytes, err := json.Marshal(batch)
 	if err != nil {
 		return err
 	}
 	params := map[string]interface{}{}
-	resp, err := c.httpRequestFactory.CreatePostRequest(CLIENTS_RESULTS_URL, params, bodyBytes)
+	var resp *http.Response
+	if shardInstanceID == nil {
+		resp, err = c.httpRequestFactory.CreatePostRequest(CLIENTS_RESULTS_URL, params, bodyBytes)
+	} else {
+		headers := map[string]string{
+			SHARD_ID_HEADER: fmt.Sprintf("shard-%d", *shardInstanceID),
+		}
+		resp, err = c.httpRequestFactory.CreatePostRequestWithHeaders(CLIENTS_RESULTS_URL, params, headers, bodyBytes)
+	}
 	if err != nil {
 		return err
 	}
@@ -150,6 +184,18 @@ func (c *SubmitClient) processBatch(batch []*common.WorkResponse) error {
 	}
 	c.processBatchResults(batch, responseMap)
 	return nil
+}
+
+func (c *SubmitClient) handleBatchFailure(batch []*common.WorkResponse, shardInstanceID *int, err error) {
+	shardLabel := "<nil>"
+	if shardInstanceID != nil {
+		shardLabel = fmt.Sprintf("%d", *shardInstanceID)
+	}
+	log.Printf("Bulk request failed for shard %s. Re-queuing all items. Error: %v", shardLabel, err)
+	time.Sleep(3 * time.Second)
+	for _, workResponse := range batch {
+		c.handleAllRequestFailure(workResponse, err.Error())
+	}
 }
 
 func (c *SubmitClient) processBatchResults(batch []*common.WorkResponse, responseMap map[string]*common.ClientSubmitResult) {
