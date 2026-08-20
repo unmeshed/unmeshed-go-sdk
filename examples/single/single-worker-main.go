@@ -23,6 +23,12 @@ func ProcessTypePtr(t common.ProcessType) *common.ProcessType { return &t }
 
 func TestWorker(data map[string]interface{}) string {
 	fmt.Println("TestWorker running with data:", data)
+	if unmeshedClient != nil {
+		current := unmeshedClient.GetCurrentWorkRequest()
+		if current != nil && current.GetShardInstanceID() != nil {
+			fmt.Printf("TestWorker shard instance id: %d\n", *current.GetShardInstanceID())
+		}
+	}
 	time.Sleep(1 * time.Second)
 	return "Hello from test-worker!"
 }
