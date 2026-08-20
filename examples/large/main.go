@@ -151,6 +151,9 @@ func PrintCurrentWorkRequest(data map[string]interface{}) string {
 		current := unmeshedClient.GetCurrentWorkRequest()
 		if current != nil {
 			fmt.Printf("Current WorkRequest in goroutine: %+v\n", current)
+			if current.GetShardInstanceID() != nil {
+				fmt.Printf("Current shard instance id: %d\n", *current.GetShardInstanceID())
+			}
 			return "Printed current work request to stdout"
 		}
 		return "No current work request found"
