@@ -102,6 +102,7 @@ func (b *WorkResponseBuilder) FailResponse(workRequest *WorkRequest, context err
 	} else {
 		workResponse.SetStepExecutionID(workRequest.GetStepExecutionID())
 	}
+	workResponse.SetShardInstanceID(workRequest.GetShardInstanceID())
 	workResponse.SetOutput(output)
 	workResponse.SetStartedAt(time.Now().UnixMilli())
 	workResponse.SetStatus(StepStatusFailed)
@@ -138,6 +139,7 @@ func (b *WorkResponseBuilder) SuccessResponse(workRequest *WorkRequest, stepResu
 	} else {
 		workResponse.SetStepExecutionID(workRequest.GetStepExecutionID())
 	}
+	workResponse.SetShardInstanceID(workRequest.GetShardInstanceID())
 	workResponse.SetOutput(output)
 	workResponse.SetStartedAt(time.Now().UnixMilli())
 	workResponse.SetStatus(StepStatusCompleted)
@@ -155,6 +157,7 @@ func (b *WorkResponseBuilder) RunningResponse(workRequest *WorkRequest, stepResu
 	} else {
 		workResponse.SetStepExecutionID(workRequest.GetStepExecutionID())
 	}
+	workResponse.SetShardInstanceID(workRequest.GetShardInstanceID())
 	workResponse.SetOutput(output)
 	workResponse.SetStartedAt(time.Now().UnixMilli())
 	workResponse.SetStatus(StepStatusRunning)

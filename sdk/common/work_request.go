@@ -4,6 +4,7 @@ type WorkRequest struct {
 	ProcessID       int64                  `json:"processId,omitempty"`
 	StepID          int64                  `json:"stepId,omitempty"`
 	StepExecutionID int64                  `json:"stepExecutionId"`
+	ShardInstanceID *int                   `json:"shardInstanceId,omitempty"`
 	StepName        string                 `json:"stepName,omitempty"`
 	StepRef         string                 `json:"stepRef,omitempty"`
 	StepNamespace   string                 `json:"stepNamespace,omitempty"`
@@ -43,6 +44,14 @@ func (w *WorkRequest) GetStepID() int64 {
 
 func (w *WorkRequest) GetStepExecutionID() int64 {
 	return w.StepExecutionID
+}
+
+func (w *WorkRequest) GetShardInstanceID() *int {
+	return w.ShardInstanceID
+}
+
+func (w *WorkRequest) SetShardInstanceID(shardInstanceID *int) {
+	w.ShardInstanceID = shardInstanceID
 }
 
 func (w *WorkRequest) GetPolling() int64 {
