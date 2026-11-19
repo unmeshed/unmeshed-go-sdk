@@ -22,15 +22,22 @@ type HttpRequestFactory struct {
 }
 
 func NewHttpRequestFactory(clientConfig *configs.ClientConfig) *HttpRequestFactory {
-	hashedToken, err := utils.CreateSecureHash(clientConfig.AuthToken)
-	if err != nil {
-		fmt.Errorf("error creating secure hash for token: %w", err)
-	}
+	var bearerValue string
 
-	bearerValue := fmt.Sprintf("Bearer client.sdk.%s.%s",
-		clientConfig.ClientID,
-		hashedToken,
-	)
+	if strings.HasPrefix(clientConfig.AuthToken, "openshell:resolve:") {
+		bearerValue = "Bearer " + clientConfig.AuthToken
+	} else {
+		hashedToken, err := utils.CreateSecureHash(clientConfig.AuthToken)
+		if err != nil {
+			panic(fmt.Errorf("error creating secure hash for token: %w", err))
+		}
+
+		bearerValue = fmt.Sprintf(
+			"Bearer client.sdk.%s.%s",
+			clientConfig.ClientID,
+			hashedToken,
+		)
+	}
 
 	// Configure transport with connection pooling
 	transport := &http.Transport{
