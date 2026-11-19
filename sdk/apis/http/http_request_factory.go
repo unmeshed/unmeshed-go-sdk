@@ -3,15 +3,19 @@ package apis
 import (
 	"bytes"
 	"fmt"
+	"log"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/unmeshed/unmeshed-go-sdk/sdk/configs"
 	"github.com/unmeshed/unmeshed-go-sdk/sdk/utils"
 )
+
+var openShellSupportLogOnce sync.Once
 
 type HttpRequestFactory struct {
 	clientConfig *configs.ClientConfig
@@ -24,7 +28,11 @@ type HttpRequestFactory struct {
 func NewHttpRequestFactory(clientConfig *configs.ClientConfig) *HttpRequestFactory {
 	var bearerValue string
 
+	openShellSupportLogOnce.Do(func() {
+		log.Printf("OpenShell auth token resolution is supported using the openshell:resolve: prefix")
+	})
 	if strings.HasPrefix(clientConfig.AuthToken, "openshell:resolve:") {
+		log.Printf("Auth token uses openshell:resolve; sending value without SDK hashing: %s", clientConfig.AuthToken)
 		bearerValue = "Bearer " + clientConfig.AuthToken
 	} else {
 		hashedToken, err := utils.CreateSecureHash(clientConfig.AuthToken)
