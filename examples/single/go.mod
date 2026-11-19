@@ -1,6 +1,6 @@
 module github.com/unmeshed/examples/single
 
-go 1.23.5
+go 1.27.4
 
 replace github.com/unmeshed/unmeshed-go-sdk => ../../
 

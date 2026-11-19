@@ -3,15 +3,19 @@ package apis
 import (
 	"bytes"
 	"fmt"
+	"log"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/unmeshed/unmeshed-go-sdk/sdk/configs"
 	"github.com/unmeshed/unmeshed-go-sdk/sdk/utils"
 )
+
+var openShellTokenLogOnce sync.Once
 
 type HttpRequestFactory struct {
 	clientConfig *configs.ClientConfig
@@ -22,15 +26,25 @@ type HttpRequestFactory struct {
 }
 
 func NewHttpRequestFactory(clientConfig *configs.ClientConfig) *HttpRequestFactory {
-	hashedToken, err := utils.CreateSecureHash(clientConfig.AuthToken)
-	if err != nil {
-		fmt.Errorf("error creating secure hash for token: %w", err)
-	}
+	var bearerValue string
 
-	bearerValue := fmt.Sprintf("Bearer client.sdk.%s.%s",
-		clientConfig.ClientID,
-		hashedToken,
-	)
+	if strings.HasPrefix(clientConfig.AuthToken, "openshell:resolve:") {
+		openShellTokenLogOnce.Do(func() {
+			log.Printf("Auth token uses openshell:resolve; sending value without SDK hashing")
+		})
+		bearerValue = "Bearer " + clientConfig.AuthToken
+	} else {
+		hashedToken, err := utils.CreateSecureHash(clientConfig.AuthToken)
+		if err != nil {
+			panic(fmt.Errorf("error creating secure hash for token: %w", err))
+		}
+
+		bearerValue = fmt.Sprintf(
+			"Bearer client.sdk.%s.%s",
+			clientConfig.ClientID,
+			hashedToken,
+		)
+	}
 
 	// Configure transport with connection pooling
 	transport := &http.Transport{
