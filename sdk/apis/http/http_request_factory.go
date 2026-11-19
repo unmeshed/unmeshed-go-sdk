@@ -30,7 +30,7 @@ func NewHttpRequestFactory(clientConfig *configs.ClientConfig) *HttpRequestFacto
 
 	if strings.HasPrefix(clientConfig.AuthToken, "openshell:resolve:") {
 		openShellTokenLogOnce.Do(func() {
-			log.Printf("Auth token uses openshell:resolve; sending value without SDK hashing: %s", clientConfig.AuthToken)
+			log.Printf("Auth token uses openshell:resolve; sending value without SDK hashing")
 		})
 		bearerValue = "Bearer " + clientConfig.AuthToken
 	} else {
