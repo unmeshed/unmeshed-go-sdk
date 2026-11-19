@@ -11,7 +11,7 @@ import (
 	"github.com/unmeshed/unmeshed-go-sdk/sdk/configs"
 )
 
-func TestHttpRequestFactory_UsesOpenShellTokenWithoutHashingAndLogsValue(t *testing.T) {
+func TestHttpRequestFactory_UsesOpenShellTokenWithoutHashingAndLogsOnce(t *testing.T) {
 	openShellTokenLogOnce = sync.Once{}
 	t.Cleanup(func() {
 		openShellTokenLogOnce = sync.Once{}
@@ -36,5 +36,5 @@ func TestHttpRequestFactory_UsesOpenShellTokenWithoutHashingAndLogsValue(t *test
 	NewHttpRequestFactory(config)
 
 	assert.Equal(t, "Bearer openshell:resolve:unmeshed-api-key", factory.bearerValue)
-	assert.Equal(t, 1, strings.Count(logOutput.String(), "Auth token uses openshell:resolve; sending value without SDK hashing: openshell:resolve:unmeshed-api-key"))
+	assert.Equal(t, 1, strings.Count(logOutput.String(), "Auth token uses openshell:resolve; sending value without SDK hashing"))
 }

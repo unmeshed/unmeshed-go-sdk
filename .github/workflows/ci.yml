@@ -19,7 +19,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
-          go-version: '1.23.5'
+          go-version: '1.27.4'
 
       - name: Set Go path and modules
         run: |
@@ -27,6 +27,5 @@ jobs:
           go mod vendor
 
       - name: Run Tests
-        working-directory: ./tests
         run: |
           go test -v ./...
