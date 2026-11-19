@@ -12,14 +12,13 @@ import (
 )
 
 func TestHttpRequestFactory_UsesOpenShellTokenWithoutHashingAndLogsValue(t *testing.T) {
-	openShellSupportLogOnce = sync.Once{}
+	openShellTokenLogOnce = sync.Once{}
 	t.Cleanup(func() {
-		openShellSupportLogOnce = sync.Once{}
+		openShellTokenLogOnce = sync.Once{}
 	})
 
 	config := configs.NewClientConfig()
 	config.SetClientID("test-client")
-	config.SetAuthToken("openshell:resolve:unmeshed-api-key")
 
 	var logOutput bytes.Buffer
 	originalOutput := log.Writer()
@@ -28,10 +27,14 @@ func TestHttpRequestFactory_UsesOpenShellTokenWithoutHashingAndLogsValue(t *test
 		log.SetOutput(originalOutput)
 	})
 
+	config.SetAuthToken("ordinary-token")
+	NewHttpRequestFactory(config)
+	assert.NotContains(t, logOutput.String(), "openshell:resolve")
+
+	config.SetAuthToken("openshell:resolve:unmeshed-api-key")
 	factory := NewHttpRequestFactory(config)
 	NewHttpRequestFactory(config)
 
 	assert.Equal(t, "Bearer openshell:resolve:unmeshed-api-key", factory.bearerValue)
-	assert.Equal(t, 1, strings.Count(logOutput.String(), "OpenShell auth token resolution is supported using the openshell:resolve: prefix"))
-	assert.Contains(t, logOutput.String(), "Auth token uses openshell:resolve; sending value without SDK hashing: openshell:resolve:unmeshed-api-key")
+	assert.Equal(t, 1, strings.Count(logOutput.String(), "Auth token uses openshell:resolve; sending value without SDK hashing: openshell:resolve:unmeshed-api-key"))
 }

@@ -125,7 +125,7 @@ func NewUnmeshedClient(
 		return nil, fmt.Errorf("cannot initialize without a valid clientId and token")
 	}
 
-    unmeshedHostName := GetHostName()
+	unmeshedHostName := GetHostName()
 	httpClientFactory := apis.NewHttpClientFactory(clientConfig)
 	httpRequestFactory := apis.NewHttpRequestFactory(clientConfig)
 	pollerClient := poller.NewPollerClient(clientConfig, &unmeshedHostName, httpClientFactory, httpRequestFactory)
@@ -180,10 +180,10 @@ func (uc *UnmeshedClient) pollForWork() ([]common.WorkRequest, error) {
 
 	for _, worker := range registeredWorkers {
 		stepQueueNameData := common.StepQueueNameData{
-			OrgId:       0,
-			Namespace:   worker.GetNamespace(),
-			StepType:    "WORKER",
-			Name:        worker.GetName(),
+			OrgId:     0,
+			Namespace: worker.GetNamespace(),
+			StepType:  "WORKER",
+			Name:      worker.GetName(),
 		}
 		workerId := formattedWorkerID(worker.GetNamespace(), worker.GetName())
 		state, exists := uc.pollStates[workerId]
@@ -496,8 +496,8 @@ func (uc *UnmeshedClient) registerWorker(worker *workersApi.Worker) error {
 	uc.Workers = append(uc.Workers, *worker)
 	uc.workersByID[workerId] = worker
 
-	workers := []workers.Worker{*worker}
-	uc.registrationClient.AddWorkers(workers)
+	unmeshedWorkers := []workers.Worker{*worker}
+	uc.registrationClient.AddWorkers(unmeshedWorkers)
 
 	log.Printf("Registered worker: %s:%s", worker.GetNamespace(), worker.GetName())
 
@@ -577,28 +577,28 @@ func (uc *UnmeshedClient) DoneChan() <-chan struct{} {
 }
 
 func GetHostName() string {
-    unmeshedHostName := os.Getenv("UNMESHED_HOST_NAME")
-    if unmeshedHostName != "" && strings.TrimSpace(unmeshedHostName) != "" {
-        return strings.TrimSpace(unmeshedHostName)
-    }
+	unmeshedHostName := os.Getenv("UNMESHED_HOST_NAME")
+	if unmeshedHostName != "" && strings.TrimSpace(unmeshedHostName) != "" {
+		return strings.TrimSpace(unmeshedHostName)
+	}
 
-    // Linux, macOS
-    hostname := os.Getenv("HOSTNAME")
-    if hostname != "" && strings.TrimSpace(hostname) != "" {
-        return strings.TrimSpace(hostname)
-    }
+	// Linux, macOS
+	hostname := os.Getenv("HOSTNAME")
+	if hostname != "" && strings.TrimSpace(hostname) != "" {
+		return strings.TrimSpace(hostname)
+	}
 
-    // Windows
-    hostname = os.Getenv("COMPUTERNAME")
-    if hostname != "" && strings.TrimSpace(hostname) != "" {
-        return strings.TrimSpace(hostname)
-    }
+	// Windows
+	hostname = os.Getenv("COMPUTERNAME")
+	if hostname != "" && strings.TrimSpace(hostname) != "" {
+		return strings.TrimSpace(hostname)
+	}
 
-    // Fallback to os.Hostname()
-    hostname, err := os.Hostname()
-    if err == nil && hostname != "" && strings.TrimSpace(hostname) != "" {
-        return strings.TrimSpace(hostname)
-    }
+	// Fallback to os.Hostname()
+	hostname, err := os.Hostname()
+	if err == nil && hostname != "" && strings.TrimSpace(hostname) != "" {
+		return strings.TrimSpace(hostname)
+	}
 
-    return "-"
+	return "-"
 }
